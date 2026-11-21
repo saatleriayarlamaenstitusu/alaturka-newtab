@@ -1,0 +1,144 @@
+/**
+ * Tema — siteden taşınan ÇEKİRDEK değişkenler.
+ *
+ * Sitenin beş paletinin tamamı değil, şimdilik `klasik`: yeni sekme
+ * sayfası sitenin kendisi değil, ondan bir parça. Palet eklemek
+ * `[data-palette="…"]` blokları eklemekten ibaret (sitedeki kalıbın
+ * aynısı), kod değişmiyor.
+ *
+ * Kural sitede olduğu gibi: arayüz vurguları `--primary` DEĞİL
+ * `--accent-ui` kullanır — bazı paletlerde `--primary` zeminle aynı
+ * renge düşüp kayboluyor.
+ */
+:root {
+  --primary: #ae002e;
+  --accent-ui: var(--primary);
+  --bg: #0b0b0d;
+  --surface: rgb(24 24 27);
+  --text: #fff;
+  --text-muted: rgb(255 255 255 / 0.55);
+  --border: rgb(255 255 255 / 0.12);
+  --radius: 12px;
+  --font1: 'Inter Tight', 'Inter', system-ui, sans-serif;
+  --gradient-end: 38%;
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --bg: #faf9f7;
+  --surface: rgb(0 0 0 / 0.04);
+  --text: #121214;
+  --text-muted: rgb(0 0 0 / 0.55);
+  --border: rgb(0 0 0 / 0.12);
+  color-scheme: light;
+}
+
+/* Vakit renkleri — sitedekiyle birebir. */
+:root[data-vakit='imsak']  { --primary: #00b7ff; }
+:root[data-vakit='gunes']  { --primary: #ffbd33; }
+:root[data-vakit='ogle']   { --primary: #ffd733; }
+:root[data-vakit='ikindi'] { --primary: #ff8c33; }
+:root[data-vakit='aksam']  { --primary: #0491fb; }
+:root[data-vakit='yatsi']  { --primary: #2e3b83; }
+
+* { box-sizing: border-box; }
+
+html, body, #app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font1);
+  color: var(--text);
+  background-color: var(--bg);
+  /* Vakit rengi tabandan yükselir — sitedeki zeminin aynı fikri. */
+  background-image: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--primary) 30%, var(--bg)) 0%,
+    var(--bg) var(--gradient-end)
+  );
+  background-attachment: fixed;
+}
+
+button, input, select {
+  font: inherit;
+  color: inherit;
+}
+
+button { cursor: pointer; }
+
+a { color: inherit; text-decoration: none; }
+
+::selection { background: color-mix(in srgb, var(--accent-ui) 35%, transparent); }
+
+/* Widget kabuğu: saydam değil MAT bir yüzey (fotoğrafın üstünde
+   yazı okunmalı), hafif bulanık zemin ve ince kenarlık. */
+.card {
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background-color: color-mix(in srgb, var(--bg) 62%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+/* Arka planda fotoğraf varken sayfanın kendi gradyanı kalkar: iki
+   zemin üst üste binince fotoğraf boğuluyor.
+   Renkler de KOYU'ya sabitlenir — açık temada beyaz yazı beyaz karta
+   düşüyordu; fotoğrafın üstü her temada koyu bir yüzeydir. */
+:root[data-photo='on'] body { background: transparent; }
+
+:root[data-photo='on'] {
+  background: #000;
+  --bg: #0b0b0d;
+  --surface: rgb(255 255 255 / 0.07);
+  --text: #fff;
+  --text-muted: rgb(255 255 255 / 0.62);
+  --border: rgb(255 255 255 / 0.16);
+}
+
+/* Fotoğrafın üstündeki büyük yazılar kendi gölgesini taşır. */
+:root[data-photo='on'] .clock .val { text-shadow: 0 2px 24px rgb(0 0 0 / 0.45); }
+
+/* Ayet metni için NESİH hattı.
+   Font eklentiye PAKETLENDİ (`public/fonts/`): uzak bir stil sayfası
+   (Google Fonts) eklenti sayfasının içerik güvenlik kuralına takılıyor
+   ve her açılışta ağa çıkmak "yeni sekme ağ beklemez" kuralını
+   çiğniyor. Yalnızca Arapça alt kümesi alındı — 78 kB. */
+@font-face {
+  font-family: 'Scheherazade New';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/scheherazade-arabic-400.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891,
+    U+0898-08E1, U+08E3-08FF, U+FB50-FDFF, U+FE70-FEFF, U+200C-200E,
+    U+2010-2011, U+204F, U+2E41, U+FBB2-FBC2;
+}
+
+/* Arayüz yazı tipi: Inter Tight — Helvetica soyundan, açık kaynaklı ve
+   değişken ağırlıklı (200–700). Siteyle aynı aile; eklentiye paketli,
+   çünkü uzak bir stil sayfası hem güvenlik kuralına takılıyor hem de
+   her açılışta ağa çıkmak demek. Latin + Latin-ext iki alt küme. */
+@font-face {
+  font-family: 'Inter Tight';
+  font-style: normal;
+  font-weight: 200 700;
+  font-display: swap;
+  src: url('/fonts/inter-tight-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+    U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Inter Tight';
+  font-style: normal;
+  font-weight: 200 700;
+  font-display: swap;
+  src: url('/fonts/inter-tight-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7,
+    U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+    U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
