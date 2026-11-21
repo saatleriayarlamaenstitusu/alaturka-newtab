@@ -41,6 +41,19 @@ export const SOCIAL_LINKS = [
   { id: 'linkedin', name: 'LinkedIn', url: 'https://www.linkedin.com/feed/' },
 ]
 
+/** Google / Workspace kısayolları. */
+export const GOOGLE_LINKS = [
+  { id: 'google', name: 'Google', url: 'https://www.google.com' },
+  { id: 'gmail', name: 'Gmail', url: 'https://mail.google.com' },
+  { id: 'youtube', name: 'YouTube', url: 'https://www.youtube.com' },
+  { id: 'docs', name: 'Docs', url: 'https://docs.google.com' },
+  { id: 'drive', name: 'Drive', url: 'https://drive.google.com' },
+  { id: 'sheets', name: 'Sheets', url: 'https://sheets.google.com' },
+  { id: 'calendar', name: 'Takvim', url: 'https://calendar.google.com' },
+  { id: 'maps', name: 'Maps', url: 'https://maps.google.com' },
+  { id: 'meet', name: 'Meet', url: 'https://meet.google.com' },
+]
+
 export const ENGINES = [
   { id: 'google', label: 'Google', url: 'https://www.google.com/search?q=' },
   { id: 'yandex', label: 'Yandex', url: 'https://yandex.com.tr/search/?text=' },
@@ -126,7 +139,7 @@ const DEFAULTS = {
   /** Widget yerleşimi: kolon → sıralı kimlik listesi. */
   layout: {
     sol: ['analog', 'takvim', 'vakit', 'hava'],
-    sag: ['sistem', 'sosyal', 'yapayzeka', 'ayet'],
+    sag: ['sistem', 'google', 'sosyal', 'yapayzeka', 'ayet'],
     alt: ['not'],
   },
   clock: { style: 'nokta', main: 'vasati', side: 'alaturka', weight: 200 },
@@ -148,6 +161,7 @@ const DEFAULTS = {
   dini: DINI_LINKS,
   yapayzeka: AI_LINKS,
   sosyal: SOCIAL_LINKS,
+  google: GOOGLE_LINKS,
   note: '',
   /**
    * Vakit hatırlatması: vakit başına dakika. -1 kapalı, 0 tam
@@ -158,7 +172,54 @@ const DEFAULTS = {
    * Arka plan. `mode`: foto (görselin kendisi) | mesh (görselin
    * renklerinden üretilen gradyan) | yok (sayfanın kendi gradyanı).
    */
-  bg: { image: '29524511', mode: 'foto', dim: 45, blur: 8, grid: false, grain: true },
+  bg: { image: '29524511', mode: 'foto', dim: 45, blur: 8, grid: false, grain: true,
+    /**
+     * Kullanıcının KENDİ görseli (data URI) ve ondan çıkarılan mesh
+     * renkleri. `image: 'ozel'` olduğunda bunlar kullanılır.
+     *
+     * Dosya seçilirken küçültülüp JPEG'e çevriliyor
+     * (`SettingsPanel.pickFile`): `chrome.storage.local` kotası 10 MB
+     * ve ham bir telefon fotoğrafı tek başına onu doldurabiliyor.
+     * Mesh renkleri de O ANDA çıkarılıyor — yerel bir data URI tuvali
+     * kirletmiyor, hazır görsellerdeki CORS engeli burada yok.
+     */
+    custom: '', customMesh: null },
+  /** Not kutusunun kullanıcı tarafından ayarlanmış yüksekliği (px). */
+  noteHeight: 0,
+  /**
+   * Kullanıcının KENDİ kısayol grupları.
+   *
+   * Yalnızca künye burada durur (`{ key, title, icon }`); bağlantıların
+   * kendisi hazır gruplarla AYNI yerde, `settings[key]` altında. Böylece
+   * bağlantı ekleme/silme/listeleme kodu ikiye ayrılmıyor — tek fark
+   * grubun adının kütükte değil kullanıcıda olması.
+   */
+  groupMeta: [],
+}
+
+/** Kısayol grubu ikonları — `ui/Icon.vue`da bulunanlar. */
+export const GROUP_ICONS = [
+  'kisayol', 'kuran', 'ai', 'sosyal', 'arama', 'not', 'takvim',
+  'saat', 'vakit', 'sistem', 'hava', 'ayet', 'gorunum', 'sehir',
+]
+
+/** Hazır grupların anahtarları — silinemezler, sıfırlanabilirler. */
+export const BUILTIN_GROUPS = ['dini', 'yapayzeka', 'sosyal', 'google']
+
+/** Yeni grup: anahtar zaman damgasından, çakışmasın diye. */
+export function addGroup(title, icon = 'kisayol') {
+  const key = `g${Date.now().toString(36)}`
+  settings[key] = []
+  settings.groupMeta = [...settings.groupMeta, { key, title: title || 'Yeni grup', icon }]
+  return key
+}
+
+export function removeGroup(key) {
+  settings.groupMeta = settings.groupMeta.filter((g) => g.key !== key)
+  delete settings[key]
+  // Ekrandan da kalkmalı; kapalı bir widget kimliği yerleşimde kalırsa
+  // `widgetById` onu bulamıyor ve sessizce düşüyor — ama kayıt şişiyor.
+  setSlot(key, 'kapali')
 }
 
 export const settings = reactive(structuredClone(DEFAULTS))
@@ -180,8 +241,12 @@ export async function loadSettings() {
   else settings.calendar = { ...DEFAULTS.calendar, ...(saved.calendar ?? {}) }
   settings.layout = { ...DEFAULTS.layout, ...(saved.layout ?? {}) }
   if (!Array.isArray(settings.shortcuts)) settings.shortcuts = []
-  for (const [key, def] of [['dini', DINI_LINKS], ['yapayzeka', AI_LINKS], ['sosyal', SOCIAL_LINKS]])
+  for (const [key, def] of [['dini', DINI_LINKS], ['yapayzeka', AI_LINKS], ['sosyal', SOCIAL_LINKS], ['google', GOOGLE_LINKS]])
     if (!Array.isArray(settings[key])) settings[key] = structuredClone(def)
+  // Kullanıcı grupları: künyesi olup bağlantı dizisi olmayan bir grup
+  // (yarım kalmış bir kayıt) uygulamayı patlatmasın.
+  if (!Array.isArray(settings.groupMeta)) settings.groupMeta = []
+  for (const g of settings.groupMeta) if (!Array.isArray(settings[g.key])) settings[g.key] = []
   state.ready = true
   watch(settings, () => writeAll(JSON.parse(JSON.stringify(settings))), { deep: true })
 }

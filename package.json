@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "zip": "npm run build && cd dist && zip -qr ../alaturka-newtab.zip .",
+    "magaza": "node scripts/magaza-gorseller.mjs"
   },
   "repository": {
     "type": "git",

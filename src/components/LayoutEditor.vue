@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { settings, moveWidget, SLOTS } from '@/lib/settings'
-import { WIDGETS, widgetById } from '@/data/widgets'
+import { allWidgets, widgetById } from '@/data/widgets'
 import Icon from '@/ui/Icon.vue'
 
 /**
@@ -32,7 +32,7 @@ const cols = { sol: listOf('sol'), alt: listOf('alt'), sag: listOf('sag') }
 
 const hidden = computed(() => {
   const placed = new Set(['sol', 'sag', 'alt'].flatMap((s) => settings.layout[s] ?? []))
-  return WIDGETS.filter((w) => !placed.has(w.id))
+  return allWidgets.value.filter((w) => !placed.has(w.id))
 })
 
 function dropOn(slot, index) {

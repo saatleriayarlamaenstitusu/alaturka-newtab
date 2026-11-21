@@ -26,6 +26,24 @@ export async function writeAll(obj) {
   try { localStorage.setItem(KEY, JSON.stringify(obj)) } catch { /* kota */ }
 }
 
+/**
+ * Genel amaçlı okuma/yazma — ayarların DIŞINDA kalan, kendi ömrü olan
+ * veriler için (vakit tablosu, hava durumu). Ayarlarla aynı anahtarda
+ * dursalardı her ayar değişiminde onlar da yeniden yazılırdı.
+ */
+export async function readKey(key) {
+  if (area) {
+    const got = await area.get(key)
+    return got?.[key] ?? null
+  }
+  try { return JSON.parse(localStorage.getItem(key) || 'null') } catch { return null }
+}
+
+export async function writeKey(key, obj) {
+  if (area) return area.set({ [key]: obj })
+  try { localStorage.setItem(key, JSON.stringify(obj)) } catch { /* kota */ }
+}
+
 /** Vakit tabloları ayrı anahtarda: ayarlardan çok daha büyükler. */
 const VAKIT_KEY = 'alaturka-newtab-vakit'
 

@@ -45,3 +45,6 @@ export const bgUrl = (id, small = false) => `${BG_BASE}/${id}${small ? '-k' : ''
 export const bgCredit = (id) => `https://www.pexels.com/photo/${id}/`
 
 export const bgById = (id) => BACKGROUNDS.find((b) => b.id === id) ?? null
+
+/** Kullanıcının kendi görseli bu kimlikle işaretlenir. */
+export const CUSTOM_BG = 'ozel'

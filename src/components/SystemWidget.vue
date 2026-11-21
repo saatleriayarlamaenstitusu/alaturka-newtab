@@ -3,13 +3,15 @@ import { computed } from 'vue'
 import { battery, cpu, ram } from '@/lib/system'
 
 /**
- * Sistem — nokta göstergeleri.
+ * Sistem — bölmeli seviye çubuğu.
  *
  * Önce halka vardı (yüzdeyi ortasındaki rakamdan okutuyordu, yani
- * süstü), sonra çentikli şerit (dolu çentikler birbirine yapışıp
- * düz bir çubuk gibi okunuyordu). Nokta dizisi ikisinin arasını
- * buluyor: yirmi ayrı nokta, sayılabilir bir ölçek, saatin nokta
- * matrisiyle de aynı dilde.
+ * süstü), sonra 0.32rem'lik noktalar: ölçek doğruydu ama noktalar hem
+ * küçük hem soluktu, karşıdan bakınca gri bir toz şeridi gibi
+ * duruyordu. Şimdi aynı yirmi adım DİK ÇUBUKLAR — bir seviye
+ * göstergesinin (VU metre) kendi dili, saatin nokta matrisiyle de
+ * akraba. Yanan çubuk beyaz, sönük olan neredeyse görünmez; aradaki
+ * fark uzaktan da okunuyor.
  */
 /** Nokta sayısı: 20 nokta = %5'lik adımlar, okunur bir çözünürlük. */
 const DOTS = 20
@@ -50,7 +52,7 @@ const lit = (pct) => Math.round(((pct ?? 0) / 100) * DOTS)
         <span class="sy-pct">{{ r.pct ?? '–' }}<i>%</i></span>
       </div>
       <div class="sy-scale" :aria-label="`${r.label} %${r.pct ?? 0}`">
-        <span v-for="i in DOTS" :key="i" class="dot" :class="{ on: i <= lit(r.pct) }" />
+        <span v-for="i in DOTS" :key="i" class="bar" :class="{ on: i <= lit(r.pct), hot: i > DOTS * 0.85 && i <= lit(r.pct) }" />
       </div>
     </div>
   </div>
@@ -82,21 +84,30 @@ const lit = (pct) => Math.round(((pct ?? 0) / 100) * DOTS)
 
 .sy-scale {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: flex-end;
   gap: 2px;
-  margin-top: 0.25rem;
+  margin-top: 0.3rem;
+  height: 0.85rem;
 }
 
-/* Sönük noktalar da duruyor: ölçeğin tamamı görünmezse %30 ile %80
+/* Sönük çubuklar da duruyor: ölçeğin tamamı görünmezse %30 ile %80
    aynı uzunlukta bir dizi gibi okunuyor. */
-.dot {
-  width: 0.32rem;
-  height: 0.32rem;
-  border-radius: 50%;
+.bar {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border-radius: 1.5px;
   background: var(--text);
-  opacity: 0.13;
+  opacity: 0.1;
+  transition: opacity 0.2s ease;
 }
 
-.dot.on { background: var(--accent-ui); opacity: 1; }
+/* Yanan çubuk BEYAZ (aksan değil): aksan rengi vakitle değişiyor ve
+   bazı vakitlerde zeminden ayrılmıyordu; ölçüm okunurluğu temaya
+   bağlı olmamalı. */
+.bar.on { opacity: 0.92; }
+
+/* Son %15: dolmak üzere. Tek renkli bir şeritte "neredeyse doldu"
+   ancak sayıyı okuyarak anlaşılıyordu. */
+.bar.hot { background: var(--primary); opacity: 1; }
 </style>

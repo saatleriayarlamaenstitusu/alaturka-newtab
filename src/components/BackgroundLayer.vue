@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { settings } from '@/lib/settings'
-import { bgUrl, bgById, meshOf } from '@/data/backgrounds'
+import { bgUrl, bgById, meshOf, CUSTOM_BG } from '@/data/backgrounds'
 
 /**
  * Arka plan katmanı.
@@ -15,8 +15,12 @@ import { bgUrl, bgById, meshOf } from '@/data/backgrounds'
  * aynı tuzak).
  */
 const mode = computed(() => settings.bg.mode ?? 'foto')
-const img = computed(() =>
-  (settings.bg.image && mode.value === 'foto' ? bgUrl(settings.bg.image) : ''))
+/** Kullanıcının kendi görseli seçiliyse kaynak CDN değil, data URI. */
+const custom = computed(() => settings.bg.image === CUSTOM_BG)
+const img = computed(() => {
+  if (mode.value !== 'foto' || !settings.bg.image) return ''
+  return custom.value ? (settings.bg.custom || '') : bgUrl(settings.bg.image)
+})
 
 /**
  * Mesh gradyan: görselin KENDİ renklerinden.
@@ -28,7 +32,9 @@ const img = computed(() =>
  */
 const mesh = computed(() => {
   if (mode.value !== 'mesh') return ''
-  const c = meshOf(settings.bg.image) ?? ['#1b1d22', '#2a2f39', '#101216', '#3a2f28', '#0b0c0e']
+  // Kendi görselinin renkleri dosya seçilirken çıkarılıp kaydedildi.
+  const own = custom.value ? settings.bg.customMesh : meshOf(settings.bg.image)
+  const c = own ?? ['#1b1d22', '#2a2f39', '#101216', '#3a2f28', '#0b0c0e']
   const spots = [
     [15, 20], [85, 15], [75, 80], [20, 85], [50, 50],
   ]
@@ -60,16 +66,24 @@ const blur = computed(() => Number(settings.bg.blur) || 0)
  * ayar istemiyor.
  */
 const GRID = 80
+/** Delik açılan şeyler: widget'lar, arama kutusu, saat ve mini blok. */
+const HOLES = '.w, .search, .ck, .mini'
 const canvas = ref(null)
 let ro = null
+let mo = null
 let pending = 0
+/** Şu an izlenen kutular — yenisi geldiğinde gözlemciye eklenir. */
+let watched = new Set()
 
 function paint() {
   const el = canvas.value
-  if (!el || !settings.bg.grid) return
+  // Tuval henüz yoksa (ızgara az önce açıldı) bir sonraki kareye bırak:
+  // sessizce vazgeçmek "ızgara bazen hiç çizilmiyor"un sebebiydi.
+  if (!el) { if (settings.bg.grid) schedule(); return }
   const dpr = window.devicePixelRatio || 1
   const w = window.innerWidth
   const h = window.innerHeight
+  if (!w || !h) return
   el.width = Math.round(w * dpr)
   el.height = Math.round(h * dpr)
   const ctx = el.getContext('2d')
@@ -85,10 +99,9 @@ function paint() {
   for (let y = GRID; y < h; y += GRID) { ctx.moveTo(0, y + 0.5); ctx.lineTo(w, y + 0.5) }
   ctx.stroke()
 
-  // Delikler: widget'lar, arama kutusu ve saat bloğu.
   ctx.globalCompositeOperation = 'destination-out'
   const pad = 6
-  for (const node of document.querySelectorAll('.w, .search, .ck, .mini')) {
+  for (const node of document.querySelectorAll(HOLES)) {
     const r = node.getBoundingClientRect()
     if (!r.width || !r.height) continue
     const radius = parseFloat(getComputedStyle(node).borderRadius) || 10
@@ -105,22 +118,51 @@ function schedule() {
   pending = requestAnimationFrame(() => nextTick(paint))
 }
 
+/**
+ * Her kutuyu AYRI izle.
+ *
+ * Önce yalnızca `document.body` izleniyordu ve yetmedi: not kutusu
+ * elle büyütüldüğünde gövdenin boyu değişmiyor (widget kolonun
+ * içinde, sayfa zaten o kadar uzun), gözlemci hiç tetiklenmiyor ve
+ * ızgara not kutusunun arkasında asılı kalıyordu. Kutuların kendisi
+ * izlenince her boy değişimi yakalanıyor.
+ */
+function observeHoles() {
+  if (!ro) return
+  const now = new Set(document.querySelectorAll(HOLES))
+  for (const el of now) if (!watched.has(el)) ro.observe(el)
+  for (const el of watched) if (!now.has(el)) ro.unobserve(el)
+  watched = now
+}
+
 onMounted(() => {
   schedule()
   window.addEventListener('resize', schedule)
-  // Widget'ların boyu içeriğiyle değişiyor (sayaç, meal metni);
-  // gövdeyi izlemek hepsini kapsıyor.
+  // Sekme arkadayken `requestAnimationFrame` çalışmıyor: öne gelince
+  // bir kez daha çizilmezse ızgara eksik kalabiliyor.
+  document.addEventListener('visibilitychange', schedule)
   ro = new ResizeObserver(schedule)
   ro.observe(document.body)
+  observeHoles()
+  // Widget açılıp kapandıkça kutu listesi değişiyor; yeni gelen
+  // kutular da izlenmeli.
+  mo = new MutationObserver(() => { observeHoles(); schedule() })
+  mo.observe(document.body, { childList: true, subtree: true })
+  // Yazı tipi geç gelirse yerleşim kayıyor ve delikler eski yerinde
+  // kalıyor.
+  document.fonts?.ready?.then(schedule).catch(() => {})
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', schedule)
+  document.removeEventListener('visibilitychange', schedule)
   ro?.disconnect()
+  mo?.disconnect()
   cancelAnimationFrame(pending)
 })
 
-watch(() => [settings.bg.grid, settings.surface, settings.layout], schedule, { deep: true })
+watch(() => [settings.bg.grid, settings.surface, settings.layout, settings.noteHeight],
+  () => { nextTick(observeHoles); schedule() }, { deep: true })
 </script>
 
 <template>

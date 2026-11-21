@@ -153,3 +153,94 @@ anahtarlanmış bir **nesne** (`Object.values(CITIES)`).
 Ana depodaki `ROADMAP.md` içinde "Chrome yeni sekme eklentisi"
 maddesine bakınız: arka plan görselleri (Pexels), palet seçimi,
 mağazaya gönderim.
+
+## Arka plan: kendi görselin
+
+- Hazır dokuzun yanında kullanıcının kendi dosyası da seçilebiliyor
+  (`bg.image = 'ozel'`, veri `bg.custom`). Dosya OLDUĞU GİBİ
+  saklanmıyor: en çok 2560px enine küçültülüp JPEG'e çevriliyor
+  (kalite 0.82) — `chrome.storage.local` kotası 10 MB ve bir telefon
+  fotoğrafı tek başına onu doldurabiliyor.
+- Mesh renkleri dosya seçilirken ÇIKARILIYOR (`bg.customMesh`): hazır
+  görsellerde tuval CORS'a takıldığı için renkler kütüğe önceden
+  yazılmıştı, ama yerel bir data URI tuvali kirletmiyor. Tuval 5×1'e
+  indirgeniyor; ortalamayı tarayıcı alıyor, ayrıca kuantalama gerekmiyor.
+
+## Izgara delikleri
+
+- Izgara tuvale çiziliyor ve her kutunun dikdörtgeni `destination-out`
+  ile siliniyor (CSS deseniyle delik açılamıyor).
+- **Her kutu AYRI izleniyor**, yalnızca `document.body` değil: not
+  kutusu elle büyütüldüğünde gövdenin boyu değişmiyor (widget kolonun
+  içinde) ve gözlemci hiç tetiklenmiyordu — ızgara notun arkasında
+  asılı kalıyordu. Ayrıca bir `MutationObserver` yeni gelen kutuları
+  izlemeye alıyor.
+- "Izgara bazen hiç çizilmiyor"un sebebi: ızgara açıldığı anda tuval
+  henüz DOM'da olmuyor ve çizim sessizce vazgeçiyordu. Artık bir
+  sonraki kareye erteleniyor. `visibilitychange` ve `document.fonts.ready`
+  de yeniden çizdiriyor — sekme arkadayken `requestAnimationFrame`
+  çalışmıyor, yazı tipi geç gelince yerleşim kayıyor.
+
+## Hava durumu
+
+- Kaynak **Open-Meteo** (`lib/weather.js`): anahtar istemiyor ve CORS
+  açık. Anahtar isteyen bir servis, anahtarı herkese açık eklenti
+  paketinin içine koymak demekti.
+- Konum cihazdan değil şehir kütüğünden (`CITIES`, plakayla anahtarlı):
+  namaz vakitleri de şehir merkezine göre, ikisi aynı yeri göstermeli.
+- **Yeni sekme ağ beklemez**: önbellekteki değer hemen gösterilir,
+  tazeleme arka planda ve en çok 30 dakikada bir. Ağ yoksa eskimiş
+  sıcaklık ekranda kalır — boş bir kutudan iyidir.
+- `host_permissions`a `https://api.open-meteo.com/*` eklendi.
+
+## Widget başlıkları ve not
+
+- Vakit, takvim, analog ve hava widget'larının BAŞLIĞI YOK: ne
+  oldukları içeriklerinden okunuyor. Kapatma düğmesi bu yüzden başlık
+  şeridinden çıkarılıp kartın köşesine alındı — başlıksız kartta şerit
+  hiç çizilmiyor ve düğme onunla birlikte kayboluyordu.
+- Not kutusunun boyu ayarın parçası (`noteHeight`). Tarayıcı `resize`
+  için olay vermiyor, kutu kendi `ResizeObserver`ıyla izleniyor. İki
+  tuzak: ayarlar depodan EŞZAMANSIZ geldiği için ilk ölçüm varsayılan
+  boydur ve kaydedilirse kullanıcının boyunu eziyor (`state.ready`
+  beklenir); kayıtlı boyu UYGULAMAK da gözlemciyi tetikliyor, o tik
+  sayılmaz (`selfSet`).
+
+## Kısayol grupları
+
+- Hazır dört grup (dinî / yapay zekâ / sosyal / Google) ile kullanıcının
+  kendi grupları AYNI yapıda: künye `settings.groupMeta` içinde
+  (`{ key, title, icon }`), bağlantılar hazır gruplarla aynı yerde
+  `settings[key]` altında. Böylece bağlantı ekleme/silme/listeleme kodu
+  ikiye ayrılmıyor; tek fark hazır grubun SIFIRLANMASI, kullanıcı
+  grubunun SİLİNMESİ.
+- Widget kütüğü bu yüzden sabit bir dizi değil `computed`
+  (`allWidgets`): grup eklemek yeni bir widget eklemek demek ve
+  yerleşim düzenleyici onu kendiliğinden görüyor.
+- Yeni grup doğduğu anda sağ kolona yerleşir; kapalı doğsaydı kullanıcı
+  onu yerleşim düzenleyicide aramak zorunda kalırdı.
+
+## Yedek
+
+- `lib/backup.js` — ayarların tamamı JSON olarak indirilir, dosya
+  tarayıcıda üretilir ve hiçbir yere gönderilmez. Vakit tablosu ve hava
+  önbelleği GİRMEZ: ikisi de yeniden üretilebilir.
+- İçe aktarma iki adımlı (önce "kaç ayar, hangi tarihli", sonra onay):
+  yanlış dosyada geri dönüşü olmayan bir iş tek dokunuşla yapılmamalı.
+- Yüklerken yalnızca TANINAN anahtarlar yazılır; yedek elle
+  düzenlenebilir bir metin.
+
+## Sistem göstergesi
+
+- Yirmi adım, nokta değil DİK ÇUBUK. Noktalar (0.32rem, %13 opaklık)
+  doğru ölçeği veriyordu ama karşıdan gri bir toz şeridi gibi
+  duruyordu.
+- Yanan çubuk BEYAZ, aksan rengi değil: aksan vakitle değişiyor ve bazı
+  vakitlerde zeminden ayrılmıyordu — ölçüm okunurluğu temaya bağlı
+  olmamalı. Son %15 kırmızı ("dolmak üzere" sayıyı okumadan görünsün).
+
+## Mağaza görselleri
+
+- `npm run magaza` → `magaza/` klasörüne mağaza simgesi, beş ekran
+  görüntüsü, tanıtım kutuları, Instagram kareleri ve (`--video` ile)
+  YouTube filmi. Ayrıntı: `docs/magaza.md`.

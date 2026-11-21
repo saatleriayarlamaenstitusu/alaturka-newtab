@@ -29,11 +29,15 @@ const emit = defineEmits(['close'])
       <Icon v-if="icon" :name="icon" :size="12" />
       <span class="w-title">{{ title }}</span>
       <span class="w-rule" aria-hidden="true" />
-      <button v-if="id" class="w-close" aria-label="Widget'ı kapat" @click="emit('close', id)">
-        <Icon name="kapat" :size="12" />
-      </button>
     </header>
     <slot />
+
+    <!-- Kapatma düğmesi başlık şeridinin İÇİNDE değil kartın köşesinde:
+         başlıksız widget'larda (vakit, takvim, analog) şerit hiç
+         çizilmiyor ve düğme onunla birlikte kayboluyordu. -->
+    <button v-if="id" class="w-close" aria-label="Widget'ı kapat" @click="emit('close', id)">
+      <Icon name="kapat" :size="12" />
+    </button>
   </section>
 </template>
 
@@ -84,6 +88,9 @@ const emit = defineEmits(['close'])
 .w-rule { flex: 1; height: 1px; background: var(--border); }
 
 .w-close {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
   display: grid;
   place-items: center;
   width: 1.1rem;
@@ -99,5 +106,11 @@ const emit = defineEmits(['close'])
 }
 
 .w:hover .w-close, .w-close:focus-visible { opacity: 1; }
-.w-close:hover { color: var(--text); background: color-mix(in srgb, var(--text) 10%, transparent); }
+/* Zeminsiz biçimde kart dolgusuz; düğme içeri taşmasın. */
+.w[data-surface='yok'] .w-close { right: 0; }
+
+.w-close:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+}
 </style>

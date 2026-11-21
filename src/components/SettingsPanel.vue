@@ -1,14 +1,16 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { CITIES } from '@alaturkavakitler/core'
 import {
   settings,
   ENGINES, CLOCK_STYLES, CLOCK_SOURCES, CLOCK_WEIGHTS, CALENDAR_VIEWS,
   SURFACES, NOTIFY_OPTIONS, VAKIT_LABELS,
-  DINI_LINKS, AI_LINKS, SOCIAL_LINKS,
+  DINI_LINKS, AI_LINKS, SOCIAL_LINKS, GOOGLE_LINKS,
+  BUILTIN_GROUPS, GROUP_ICONS, addGroup, removeGroup, moveWidget,
 } from '@/lib/settings'
+import { exportBackup, importBackup } from '@/lib/backup'
 import LayoutEditor from '@/components/LayoutEditor.vue'
-import { BACKGROUNDS, bgUrl } from '@/data/backgrounds'
+import { BACKGROUNDS, bgUrl, CUSTOM_BG } from '@/data/backgrounds'
 import Icon from '@/ui/Icon.vue'
 import Select from '@/ui/Select.vue'
 import Switch from '@/ui/Switch.vue'
@@ -45,14 +47,190 @@ const cityOptions = Object.values(CITIES)
 const opt = (list) => list.map((x) => ({ value: x.id, label: x.label }))
 
 const dropLink = (key, id) => { settings[key] = settings[key].filter((l) => l.id !== id) }
-const DEFAULT_LINKS = { dini: DINI_LINKS, yapayzeka: AI_LINKS, sosyal: SOCIAL_LINKS }
+const BUILTIN_META = {
+  dini: { label: 'Dinî bağlantılar', icon: 'kuran' },
+  yapayzeka: { label: 'Yapay zekâ', icon: 'ai' },
+  sosyal: { label: 'Sosyal medya', icon: 'sosyal' },
+  google: { label: 'Google', icon: 'kisayol' },
+}
+
+/**
+ * Bağlantı grupları: hazır dördü + kullanıcının kendi grupları.
+ *
+ * İkisi AYNI yapıda tutuluyor (künye ayrı, bağlantılar `settings[key]`
+ * altında), bu yüzden buradaki liste ve aşağıdaki bölüm ikisini de
+ * ayırt etmeden çiziyor. Tek fark: hazır grup silinemez, sıfırlanır;
+ * kullanıcı grubu sıfırlanmaz, silinir.
+ */
+const LINK_KEYS = computed(() =>
+  [...BUILTIN_GROUPS, ...settings.groupMeta.map((g) => g.key)])
+
+const LINK_META = computed(() => {
+  const out = { ...BUILTIN_META }
+  for (const g of settings.groupMeta) out[g.key] = { label: g.title, icon: g.icon || 'kisayol' }
+  return out
+})
+
+const isBuiltin = (k) => BUILTIN_GROUPS.includes(k)
+
+/** Yeni grup formu. */
+const newGroup = ref({ open: false, title: '', icon: 'kisayol' })
+
+function createGroup() {
+  const t = newGroup.value.title.trim()
+  if (!t) return
+  const key = addGroup(t, newGroup.value.icon)
+  // Yeni grup görünür olsun: kapalı bir widget olarak doğarsa
+  // kullanıcı onu yerleşim düzenleyicide aramak zorunda kalıyor.
+  moveWidget(key, 'sag')
+  draft.value[key] = { name: '', url: '' }
+  adding.value[key] = true
+  open.value = new Set([...open.value, key])
+  newGroup.value = { open: false, title: '', icon: 'kisayol' }
+}
+
+function dropGroup(key) {
+  if (confirmGroup.value !== key) { confirmGroup.value = key; return }
+  removeGroup(key)
+  confirmGroup.value = null
+}
+const confirmGroup = ref(null)
+const DEFAULT_LINKS = { dini: DINI_LINKS, yapayzeka: AI_LINKS, sosyal: SOCIAL_LINKS, google: GOOGLE_LINKS }
 const resetLinks = (key) => { settings[key] = structuredClone(DEFAULT_LINKS[key]) }
+
+/** Yeni bağlantı formu — grup başına ayrı alan (biri açıkken öbürü karışmasın). */
+// Taslaklar anahtar başına TEMBEL kuruluyor: grup listesi artık sabit
+// değil, kullanıcı yeni grup ekleyebiliyor.
+const draft = ref({})
+const adding = ref({})
+const draftOf = (k) => (draft.value[k] ??= { name: '', url: '' })
+
+function addLink(key) {
+  const d = draft.value[key]
+  let u = (d.url || '').trim()
+  if (!u) return
+  if (!/^https?:\/\//i.test(u)) u = `https://${u}`
+  let host = ''
+  try { host = new URL(u).hostname.replace(/^www\./, '') } catch { return }
+  const n = (d.name || '').trim() || host
+  settings[key] = [...settings[key], { id: `u${Date.now()}`, name: n, url: u }]
+  draft.value = { ...draft.value, [key]: { name: '', url: '' } }
+  adding.value = { ...adding.value, [key]: false }
+}
 
 const bgModes = [
   { value: 'foto', label: 'Fotoğraf' },
   { value: 'mesh', label: 'Mesh gradyan' },
   { value: 'yok', label: 'Yok' },
 ]
+
+/**
+ * Kendi görselini arka plan yap.
+ *
+ * Dosya OLDUĞU GİBİ saklanmıyor: `chrome.storage.local` kotası 10 MB
+ * ve bir telefon fotoğrafı tek başına onu doldurabiliyor. Görsel en
+ * çok 2560px enine küçültülüp JPEG'e çevriliyor (kalite 0.82) —
+ * ekranda farkı görünmüyor, boyu onda birine iniyor.
+ *
+ * Mesh renkleri de burada çıkarılıyor: hazır görsellerde tuval CORS'a
+ * takıldığı için renkler kütüğe önceden yazılmıştı, ama yerel bir
+ * dosya tuvali kirletmiyor — kullanıcının görselinde mesh kipi de
+ * çalışsın diye beş renk okunuyor.
+ */
+const file = ref(null)
+const bgNote = ref('')
+const MAX_W = 2560
+
+function pickFile(e) {
+  const f = e.target.files?.[0]
+  e.target.value = ''
+  if (!f) return
+  if (!f.type.startsWith('image/')) { bgNote.value = 'Bu bir görsel değil.'; return }
+  bgNote.value = 'Görsel hazırlanıyor…'
+  const reader = new FileReader()
+  reader.onerror = () => { bgNote.value = 'Dosya okunamadı.' }
+  reader.onload = () => {
+    const img = new Image()
+    // `decode()` KULLANILMIYOR: belgeye eklenmemiş `Image` + data URI
+    // bileşiminde çözülmüyor (sitedeki palette.js'te ölçüldü).
+    img.onerror = () => { bgNote.value = 'Görsel açılamadı.' }
+    img.onload = () => {
+      try {
+        const scale = Math.min(1, MAX_W / img.naturalWidth)
+        const w = Math.round(img.naturalWidth * scale)
+        const h = Math.round(img.naturalHeight * scale)
+        const c = document.createElement('canvas')
+        c.width = w
+        c.height = h
+        const ctx = c.getContext('2d')
+        ctx.drawImage(img, 0, 0, w, h)
+        settings.bg.custom = c.toDataURL('image/jpeg', 0.82)
+        settings.bg.customMesh = meshFrom(ctx, c)
+        settings.bg.image = CUSTOM_BG
+        if (settings.bg.mode === 'yok') settings.bg.mode = 'foto'
+        bgNote.value = ''
+      } catch {
+        bgNote.value = 'Görsel çok büyük, daha küçüğünü dene.'
+      }
+    }
+    img.src = reader.result
+  }
+  reader.readAsDataURL(f)
+}
+
+/**
+ * Görselden beş mesh rengi.
+ *
+ * Tuval 5×1'e indirgeniyor: tarayıcı ortalamayı kendisi alıyor ve
+ * ortaya görselin soldan sağa renk şeridi çıkıyor. Kuantalamaya gerek
+ * yok, zaten ortalama alınmış renkler.
+ */
+function meshFrom(ctx, canvas) {
+  try {
+    const small = document.createElement('canvas')
+    small.width = 5
+    small.height = 1
+    small.getContext('2d').drawImage(canvas, 0, 0, 5, 1)
+    const d = small.getContext('2d').getImageData(0, 0, 5, 1).data
+    const hex = (n) => n.toString(16).padStart(2, '0')
+    return Array.from({ length: 5 }, (_, i) =>
+      `#${hex(d[i * 4])}${hex(d[i * 4 + 1])}${hex(d[i * 4 + 2])}`)
+  } catch {
+    return null
+  }
+}
+
+/* ── Yedek ───────────────────────────────────────────────────────── */
+const backupFile = ref(null)
+const backupNote = ref('')
+const backupWarn = ref(false)
+const pendingBackup = ref(null)
+
+async function pickBackup(e) {
+  const f = e.target.files?.[0]
+  e.target.value = ''
+  if (!f) return
+  try {
+    const data = await importBackup(f)
+    pendingBackup.value = data
+    backupWarn.value = false
+    const d = data.at ? new Date(data.at).toLocaleString('tr-TR') : 'tarihsiz'
+    backupNote.value = `${Object.keys(data.settings).length} ayar · ${d}. Üzerine yazılsın mı?`
+  } catch (err) {
+    pendingBackup.value = null
+    backupWarn.value = true
+    backupNote.value = err.message
+  }
+}
+
+function applyPending() {
+  const data = pendingBackup.value
+  if (!data) return
+  Object.assign(settings, data.settings)
+  pendingBackup.value = null
+  backupWarn.value = false
+  backupNote.value = 'Yüklendi.'
+}
 </script>
 
 <template>
@@ -188,7 +366,28 @@ const bgModes = [
                 :style="{ backgroundImage: `url(${bgUrl(b.id, true)})` }"
                 @click="settings.bg.image = b.id"
               />
+              <!-- Kendi görseli: kütükteki dokuzun yanında, aynı
+                   ızgarada. Seçildiğinde küçük hâli karenin zemini
+                   oluyor, yani öbürleriyle aynı dilde. -->
+              <button
+                class="bg-opt bg-own"
+                :class="{ on: settings.bg.image === CUSTOM_BG }"
+                title="Kendi görselin"
+                :style="settings.bg.custom ? { backgroundImage: `url(${settings.bg.custom})` } : null"
+                @click="file?.click()"
+              >
+                <Icon v-if="!settings.bg.custom" name="arkaplan" :size="14" />
+                <span v-else class="bg-own-tag">Değiştir</span>
+              </button>
+              <input
+                ref="file"
+                type="file"
+                accept="image/*"
+                class="bg-file"
+                @change="pickFile"
+              />
             </div>
+            <p v-if="bgNote" class="bg-note">{{ bgNote }}</p>
             <div class="row"><span>Biçim</span>
               <div class="seg">
                 <button
@@ -262,10 +461,10 @@ const bgModes = [
         </section>
 
         <!-- ── Bağlantılar ── -->
-        <section v-for="k in ['dini', 'yapayzeka', 'sosyal']" :key="k" class="grp">
+        <section v-for="k in LINK_KEYS" :key="k" class="grp">
           <button class="grp-head" @click="toggleGroup(k)">
-            <Icon :name="k === 'dini' ? 'kuran' : k === 'sosyal' ? 'sosyal' : 'ai'" :size="13" />
-            <span>{{ k === 'dini' ? 'Dinî bağlantılar' : k === 'sosyal' ? 'Sosyal medya' : 'Yapay zekâ' }}</span>
+            <Icon :name="LINK_META[k].icon" :size="13" />
+            <span>{{ LINK_META[k].label }}</span>
             <span class="rule" /><span class="chev">{{ isOpen(k) ? '−' : '+' }}</span>
           </button>
           <div v-if="isOpen(k)" class="grp-body">
@@ -278,7 +477,79 @@ const bgModes = [
                 </button>
               </li>
             </ul>
-            <button class="reset" @click="resetLinks(k)">Hazır listeye dön</button>
+            <form v-if="adding[k]" class="link-add" @submit.prevent="addLink(k)">
+              <input v-model="draftOf(k).name" placeholder="Ad" :aria-label="`${k} bağlantı adı`" />
+              <input v-model="draftOf(k).url" placeholder="adres.com" :aria-label="`${k} bağlantı adresi`" />
+              <button type="submit">Kaydet</button>
+            </form>
+            <div class="link-actions">
+              <button class="reset" type="button" @click="adding[k] = !adding[k]">
+                {{ adding[k] ? 'Vazgeç' : 'Ekle' }}
+              </button>
+              <!-- Hazır grup SİLİNMEZ (kütükten geliyor), sıfırlanır;
+                   kullanıcı grubu sıfırlanmaz, silinir. -->
+              <button v-if="isBuiltin(k)" class="reset" type="button" @click="resetLinks(k)">Hazır listeye dön</button>
+              <button
+                v-else
+                class="reset"
+                :class="{ danger: confirmGroup === k }"
+                type="button"
+                @click="dropGroup(k)"
+              >{{ confirmGroup === k ? 'Emin misin?' : 'Grubu sil' }}</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── Yeni kısayol grubu ── -->
+        <section class="grp">
+          <button class="grp-head" @click="newGroup.open = !newGroup.open">
+            <Icon name="arti" :size="13" /><span>Yeni kısayol grubu</span>
+            <span class="rule" /><span class="chev">{{ newGroup.open ? '−' : '+' }}</span>
+          </button>
+          <div v-if="newGroup.open" class="grp-body">
+            <p class="hint">Kendi başlığın, kendi ikonun, kendi bağlantıların. Grup ayrı bir widget olarak eklenir; yerini yerleşim düzenleyiciden değiştirebilirsin.</p>
+            <form class="link-add" @submit.prevent="createGroup">
+              <input v-model="newGroup.title" placeholder="Grup adı" aria-label="Grup adı" />
+              <button type="submit" :disabled="!newGroup.title.trim()">Oluştur</button>
+            </form>
+            <div class="icons">
+              <button
+                v-for="i in GROUP_ICONS"
+                :key="i"
+                class="icon-opt"
+                :class="{ on: newGroup.icon === i }"
+                :title="i"
+                type="button"
+                @click="newGroup.icon = i"
+              ><Icon :name="i" :size="15" /></button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── Yedek ── -->
+        <section class="grp">
+          <button class="grp-head" @click="toggleGroup('yedek')">
+            <Icon name="yerlesim" :size="13" /><span>Yedek</span>
+            <span class="rule" /><span class="chev">{{ isOpen('yedek') ? '−' : '+' }}</span>
+          </button>
+          <div v-if="isOpen('yedek')" class="grp-body">
+            <p class="hint">
+              Bütün ayarların tarayıcının kendi deposunda duruyor; tarayıcı verisi
+              temizlenirse geri getirecek bir sunucu yok. Dosya bu cihazda üretilir,
+              hiçbir yere gönderilmez.
+            </p>
+            <div class="link-actions">
+              <button class="reset" type="button" @click="exportBackup()">Yedeği indir</button>
+              <button class="reset" type="button" @click="backupFile?.click()">Yedekten yükle</button>
+            </div>
+            <input ref="backupFile" type="file" accept="application/json,.json" class="bg-file" @change="pickBackup" />
+            <p v-if="backupNote" class="hint" :class="{ warn: backupWarn }">{{ backupNote }}</p>
+            <!-- İçe aktarma İKİ adımlı: yanlış dosyada geri dönüşü
+                 olmayan bir iş, tek dokunuşla yapılmamalı. -->
+            <div v-if="pendingBackup" class="link-actions">
+              <button class="reset danger" type="button" @click="applyPending">Üzerine yaz</button>
+              <button class="reset" type="button" @click="pendingBackup = null; backupNote = ''">Vazgeç</button>
+            </div>
           </div>
         </section>
 
@@ -306,6 +577,49 @@ const bgModes = [
 </template>
 
 <style scoped>
+/* Grup ikonu seçici: küçük kareler, seçili olan aksanlı. */
+.icons { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.4rem; }
+
+.icon-opt {
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.icon-opt.on { border-color: var(--accent-ui); color: var(--text); }
+.reset.danger { color: var(--primary); border-color: var(--primary); }
+.hint.warn { color: var(--primary); }
+
+/* Kendi görseli: boşken ikonlu bir kare, doluyken küçük hâli zemin. */
+.bg-own {
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  border-style: dashed;
+}
+
+.bg-own.on { border-style: solid; }
+
+.bg-own-tag {
+  font-size: 0.5rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.1rem 0.25rem;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  color: var(--text);
+}
+
+.bg-file { display: none; }
+
+.bg-note { margin: 0.35rem 0 0; font-size: 0.6rem; color: var(--text-muted); }
+
 .veil {
   position: fixed;
   inset: 0;
@@ -469,6 +783,26 @@ const bgModes = [
 
 .del:hover { color: var(--text); background: color-mix(in srgb, var(--text) 10%, transparent); }
 
+.link-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+
+.link-add {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr auto;
+  gap: 0.3rem;
+}
+
+.link-add input {
+  min-width: 0;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.72rem;
+}
+
+.link-add button,
 .reset {
   align-self: flex-start;
   padding: 0.3rem 0.6rem;
@@ -481,5 +815,6 @@ const bgModes = [
   cursor: pointer;
 }
 
+.link-add button:hover,
 .reset:hover { color: var(--text); border-color: var(--text); }
 </style>

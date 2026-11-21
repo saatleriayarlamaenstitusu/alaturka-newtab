@@ -91,7 +91,7 @@ const COMPONENTS = {
 }
 
 /** Bağlantı widget'ları tek bileşenden beslenir; fark yalnızca veride. */
-const LINKS = { dini: {}, yapayzeka: { compact: true }, sosyal: { compact: true } }
+const LINKS = { dini: {}, yapayzeka: { compact: true }, sosyal: { compact: true }, google: { compact: true } }
 
 const inUse = (id) => ['sol', 'sag', 'alt'].some((s) => settings.layout[s]?.includes(id))
 

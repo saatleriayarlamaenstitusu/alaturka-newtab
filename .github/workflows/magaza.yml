@@ -1,0 +1,101 @@
+# Chrome Web Store'a sürüm geçer.
+#
+# Yalnızca VAR OLAN bir öğeyi günceller — mağaza API'si yeni öğe
+# oluşturamıyor, ilk yayın elle yapılır (bkz. docs/magaza.md).
+#
+# Tetikleyici bir sürüm etiketi: `git tag v0.4.0 && git push --tags`.
+# `workflow_dispatch` ile elle de çalıştırılabiliyor; yükleyip yayına
+# göndermeden bırakmak için `publish: false` seçilir.
+name: Mağaza
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Yükledikten sonra yayına gönderilsin mi'
+        type: boolean
+        default: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # `npm ci` değil `npm install`: package-lock bu depoda sürekli
+      # değişiyor ve ci sürüm uyuşmazlığında hata veriyor.
+      - run: npm install
+      - run: npm run build
+
+      - name: Sürümü manifestten oku ve etiketle karşılaştır
+        run: |
+          V=$(node -p "require('./dist/manifest.json').version")
+          echo "Manifest sürümü: $V"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "v$V" != "${GITHUB_REF_NAME}" ]; then
+            echo "::error::Etiket ${GITHUB_REF_NAME} ile manifest sürümü $V uyuşmuyor."
+            exit 1
+          fi
+
+      - name: Paketi ziple
+        run: cd dist && zip -qr ../alaturka-newtab.zip .
+
+      - name: Erişim anahtarı al
+        id: token
+        env:
+          CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+        run: |
+          # Erişim anahtarı bir saatte doluyor; her çalışmada yenisi alınır.
+          TOKEN=$(curl -sf -X POST https://oauth2.googleapis.com/token \
+            -d "client_id=$CLIENT_ID" \
+            -d "client_secret=$CLIENT_SECRET" \
+            -d "refresh_token=$REFRESH_TOKEN" \
+            -d "grant_type=refresh_token" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).access_token")
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "undefined" ]; then
+            echo "::error::Erişim anahtarı alınamadı."
+            exit 1
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Yükle
+        env:
+          TOKEN: ${{ steps.token.outputs.token }}
+          PUB: ${{ secrets.CWS_PUBLISHER_ID }}
+          EXT: ${{ secrets.CWS_EXTENSION_ID }}
+        run: |
+          # Gövde SADECE zip; `/upload/` yolu kullanılır.
+          OUT=$(curl -sf -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/zip" \
+            --data-binary @alaturka-newtab.zip \
+            "https://chromewebstore.googleapis.com/upload/v2/publishers/$PUB/items/$EXT:upload")
+          echo "$OUT"
+          echo "$OUT" | grep -q '"uploadState": *"FAILURE"' && exit 1 || true
+
+      - name: Yayına gönder
+        if: github.event_name == 'push' || inputs.publish
+        env:
+          TOKEN: ${{ steps.token.outputs.token }}
+          PUB: ${{ secrets.CWS_PUBLISHER_ID }}
+          EXT: ${{ secrets.CWS_EXTENSION_ID }}
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Length: 0" \
+            "https://chromewebstore.googleapis.com/v2/publishers/$PUB/items/$EXT:publish"
+          echo
+          echo "Gönderildi — inceleme Google tarafında, otomasyon onu hızlandırmıyor."
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alaturka-newtab
+          path: alaturka-newtab.zip
