@@ -4,6 +4,18 @@ Bu dosya iki şey içeriyor: **nasıl yükleneceği** ve **mağaza sayfasının
 metinleri**. Metinler olduğu gibi kopyalanabilir; incelemede en çok
 takılınan yer metin değil **izin gerekçeleri**, o yüzden onlar da hazır.
 
+## Yayında
+
+Eklenti **22 Kasım 2026**'da yayımlandı:
+
+- Mağaza sayfası: <https://chromewebstore.google.com/detail/hknlkhdhepllicappjmgcliepnlljdcf/>
+- Öğe kimliği: `hknlkhdhepllicappjmgcliepnlljdcf` → `CWS_EXTENSION_ID`
+- Mağazadaki ad: **Alaturka Yeni Sekme**
+
+İlk yayın elle yapıldığı için aşağıdaki 1–3. bölümler artık bir kayıt;
+bundan sonraki sürümler §4'teki akışla (etiket → GitHub Actions)
+gidiyor. Metinler değiştiğinde yine buradan kopyalanır.
+
 ---
 
 ## 0. Önce bilinmesi gerekenler
@@ -276,13 +288,13 @@ gönderiyor.
 
 `Settings → Secrets and variables → Actions`:
 
-| Sır | Nereden |
-|---|---|
-| `CWS_CLIENT_ID` | OAuth istemcisi |
-| `CWS_CLIENT_SECRET` | OAuth istemcisi |
-| `CWS_REFRESH_TOKEN` | OAuth Playground |
-| `CWS_PUBLISHER_ID` | Panel → Yayıncı → Ayarlar |
-| `CWS_EXTENSION_ID` | Panel → öğe → Paket sekmesi |
+| Sır                 | Nereden                     |
+| ------------------- | --------------------------- |
+| `CWS_CLIENT_ID`     | OAuth istemcisi             |
+| `CWS_CLIENT_SECRET` | OAuth istemcisi             |
+| `CWS_REFRESH_TOKEN` | OAuth Playground            |
+| `CWS_PUBLISHER_ID`  | Panel → Yayıncı → Ayarlar   |
+| `CWS_EXTENSION_ID`  | Panel → öğe → Paket sekmesi |
 
 ### 4.3 Sürüm çıkarmak
 

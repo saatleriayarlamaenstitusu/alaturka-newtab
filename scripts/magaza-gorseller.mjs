@@ -16,7 +16,7 @@
 //   node scripts/magaza-gorseller.mjs --video    → ayrıca YouTube filmi
 import { spawn, spawnSync } from 'node:child_process'
 import { mkdir, writeFile, rm, readFile } from 'node:fs/promises'
-import { createReadStream, existsSync } from 'node:fs'
+import { createReadStream, existsSync, readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
@@ -278,31 +278,93 @@ async function shotUri(file) {
 // Kart metinleri mağaza açıklamasıyla AYNI ağızdan konuşur
 // (`docs/magaza.md` §3.3): orada "siz", burada "sen" olsaydı iki ayrı
 // ürün gibi okunurdu.
+/* Metinler TEK dosyadan gelir: `alaturkavakitler/brand/social/metinler.txt`.
+   Üç deponun tanıtım yazıları orada duruyor ve bir cümleyi düzeltmek
+   için burayı açmak gerekmiyor. Depolar yan yana değilse yol ortamdan
+   verilir: `METINLER=/yol/metinler.txt npm run magaza`.
+   Dosya yoksa aşağıdaki yedek metinler kullanılır. */
+function readMetin(file) {
+  const out = {}
+  let key = null
+  for (const raw of readFileSync(file, 'utf8').split('\n')) {
+    const line = raw.trim()
+    if (!line || line.startsWith('#')) continue
+    const head = line.match(/^\[([^\]]+)\]$/)
+    if (head) { key = head[1].includes('/') ? head[1] : null; if (key) out[key] = {} ; continue }
+    const eq = line.indexOf('=')
+    if (eq === -1 || !key) continue
+    out[key][line.slice(0, eq).trim()] = line.slice(eq + 1).trim()
+  }
+  return out
+}
+
+const METIN_FILE = process.env.METINLER
+  ?? join(ROOT, '..', 'alaturkavakitler', 'brand', 'social', 'metinler.txt')
+const METIN = existsSync(METIN_FILE) ? readMetin(METIN_FILE) : {}
+if (!Object.keys(METIN).length) console.warn('! metinler.txt okunamadı:', METIN_FILE)
+
+/** Kartın yazılarını dosyadan alır; `title` iki satırdır. */
+const txt = (key, def) => {
+  const m = METIN[key]
+  if (!m) return def
+  return {
+    ...def,
+    title: [m.baslik1, m.baslik2].filter(Boolean).join('\n') || def.title,
+    sub: m.aciklama ?? '',
+  }
+}
+
 const CARDS = [
-  { file: 'promo-440x280.jpg', w: 440, h: 280, kind: 'kucuk', shot: '01-genel.png',
-    title: 'Alaturka Vakitler', sub: 'Yeni Sekme' },
-  { file: 'promo-1400x560.jpg', w: 1400, h: 560, kind: 'genis', shot: '01-genel.png',
+  txt('eklenti/promo-kucuk', { file: 'promo-440x280.jpg', w: 440, h: 280, kind: 'kucuk', shot: '01-genel.png',
+    title: 'Alaturka Vakitler', sub: 'Yeni Sekme' }),
+  txt('eklenti/promo-genis', { file: 'promo-1400x560.jpg', w: 1400, h: 560, kind: 'genis', shot: '01-genel.png',
     title: 'Yeni sekmeniz\ngüne açılsın',
-    sub: 'Alaturka saat · namaz vakitleri · hicri takvim · günün ayeti · hava durumu' },
-  { file: 'ig-1-1080x1350.jpg', w: 1080, h: 1350, kind: 'dikey', shot: '01-genel.png',
-    title: 'Boş sekme yerine\ngünün panosu', sub: 'Alaturka Vakitler · Yeni Sekme' },
-  { file: 'ig-2-1080x1350.jpg', w: 1080, h: 1350, kind: 'dikey', shot: '02-acik-tema.png',
-    title: 'Her şey\nsizin kurduğunuz yerde', sub: 'Widget’ları sürükleyin, arka planı değiştirin, kendi fotoğrafınızı yükleyin' },
-  { file: 'ig-3-1080x1350.jpg', w: 1080, h: 1350, kind: 'dikey', shot: '03-mesh-izgara.png',
-    title: 'Gününüz,\nvaktiyle birlikte', sub: 'Vakitler, hicri takvim ve günün ayeti · Diyanet verisiyle, 81 il' },
-  { file: 'ig-4-1080x1350.jpg', w: 1080, h: 1350, kind: 'dikey', shot: '05-ayarlar.png',
-    title: 'Sade, reklamsız\nve gizlilik dostu', sub: 'Hesap yok, giriş yok, izleme yok' },
-  { file: 'kolaj-1280x800.jpg', w: 1280, h: 800, kind: 'kolaj', shot: '04-widgetlar.png',
-    title: 'Ekranınızda ne varsa\nsiz koydunuz', sub: 'Vakitler · takvim · hava · sistem · ayet · not · kendi kısayol gruplarınız' },
+    sub: 'Alaturka saat · namaz vakitleri · hicri takvim · günün ayeti · hava durumu' }),
+  // Rozet ilk karede: akışta önce o görünüyor ve "nereden kurulur"
+  // sorusu ilk karşılaşmada soruluyor.
+  txt('eklenti/ig-1', { file: 'ig-1-1080x1350.jpg', w: 1080, h: 1350, kind: 'dikey', shot: '01-genel.png', badge: true,
+    title: 'Boş sekme yerine\ngünün panosu', sub: 'Alaturka Vakitler · Yeni Sekme' }),
+  txt('eklenti/ig-2', { file: 'ig-2-1080x1350.jpg', w: 1080, h: 1350, kind: 'dikey', shot: '02-acik-tema.png',
+    title: 'Her şey\nsizin kurduğunuz yerde', sub: 'Widget’ları sürükleyin, arka planı değiştirin, kendi fotoğrafınızı yükleyin' }),
+  txt('eklenti/ig-3', { file: 'ig-3-1080x1350.jpg', w: 1080, h: 1350, kind: 'dikey', shot: '03-mesh-izgara.png',
+    title: 'Gününüz,\nvaktiyle birlikte', sub: 'Vakitler, hicri takvim ve günün ayeti · Diyanet verisiyle, 81 il' }),
+  txt('eklenti/ig-4', { file: 'ig-4-1080x1350.jpg', w: 1080, h: 1350, kind: 'dikey', shot: '05-ayarlar.png',
+    title: 'Sade, reklamsız\nve gizlilik dostu', sub: 'Hesap yok, giriş yok, izleme yok' }),
+  txt('eklenti/kolaj', { file: 'kolaj-1280x800.jpg', w: 1280, h: 800, kind: 'kolaj', shot: '04-widgetlar.png',
+    title: 'Ekranınızda ne varsa\nsiz koydunuz', sub: 'Vakitler · takvim · hava · sistem · ayet · not · kendi kısayol gruplarınız' }),
 ]
 
-const cardHtml = (c, uri) => `<!doctype html><html lang="tr"><head><meta charset="utf-8">
-<style>
-  /* İKİ ALT KÜME birden. Yalnızca latin-ext yüklenmişti ve o altküme
+/* Inter Tight — İKİ ALT KÜME birden.
+Yalnızca latin-ext yüklenmişti ve o altküme
      TEMEL LATİN harflerini taşımıyor: başlıkların neredeyse tamamı
      sessizce sistem yazı tipine düşüyordu (kalınlık değişiyordu ama
-     harfler Inter Tight değildi). Aralıklar base.css'ten birebir. */
-  @font-face {
+     harfler Inter Tight değildi). Aralıklar base.css'ten birebir.
+ */
+/* Mağaza rozeti + desteklenen tarayıcılar.
+   İki kartta birden kullanılıyor (ilk Instagram karesi ve widget
+   tahtası), bu yüzden tek yerde duruyor. Google'ın mağaza logosu
+   KULLANILMAZ — marka; yalnızca adı yazar. Samsung Internet listede
+   yok: Chromium tabanlı ama kendi mağazasını kullanıyor. */
+const STORE_LINE = {
+  pill: 'Chrome Web Store’dan indirin',
+  works: 'Chromium tabanlı tarayıcılarda çalışır',
+  browsers: 'Chrome · Edge · Brave · Vivaldi · Arc · Opera · Yandex · Chromium',
+}
+
+const storeCss = (k = 1) => `
+.store { display: flex; flex-direction: column; align-items: flex-start; gap: ${Math.round(10 * k)}px; }
+.store .pill { font-size: ${Math.round(21 * k)}px; font-weight: 600; padding: ${Math.round(11 * k)}px ${Math.round(20 * k)}px;
+  border-radius: 999px; background: #fff; color: #0b0c0e; }
+.store .works { font-size: ${Math.round(17 * k)}px; font-weight: 500; color: rgba(255,255,255,.72); }
+.store .browsers { font-size: ${Math.round(15 * k)}px; letter-spacing: 0.04em; color: rgba(255,255,255,.4); }`
+
+const storeHtml = (o = STORE_LINE) => `<div class="store">
+  <span class="pill">${o.pill}</span>
+  <span class="works">${o.works}</span>
+  <span class="browsers">${o.browsers}</span>
+</div>`
+
+const FONT_FACE = `@font-face {
     font-family: 'Inter Tight'; font-style: normal; font-weight: 200 700;
     font-display: block;
     src: url('/fonts/inter-tight-latin.woff2') format('woff2');
@@ -318,7 +380,20 @@ const cardHtml = (c, uri) => `<!doctype html><html lang="tr"><head><meta charset
       U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
       U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
       U+A720-A7FF;
-  }
+  }`
+
+/* Punto metne uyar, metin puntoya değil: ilk turda açıklamalara 110
+   karakterlik bir sınır konmuştu ve metinler o sınıra sıkıştırıldıkları
+   için cılız kalmıştı. Sınır kalktı, kart küçülüyor. */
+const fit = (text, steps) => {
+  const n = String(text ?? '').replace(/<[^>]*>/g, '').length
+  for (const [limit, k] of steps) if (n <= limit) return k
+  return steps[steps.length - 1][1]
+}
+const cardHtml = (c, uri) => `<!doctype html><html lang="tr"><head><meta charset="utf-8">
+<style>
+  ${FONT_FACE}
+  ${storeCss(1)}
   * { margin: 0; box-sizing: border-box; }
   html, body { width: ${c.w}px; height: ${c.h}px; overflow: hidden; }
   body {
@@ -353,7 +428,7 @@ const cardHtml = (c, uri) => `<!doctype html><html lang="tr"><head><meta charset
 ${c.kind === 'kucuk' ? `
   <div class="inner" style="align-items:center;padding:0 0 0 30px;gap:18px">
     <div class="txt" style="flex:0 0 48%">
-      <h1 style="font-size:31px">${c.title}</h1>
+      <h1 style="font-size:${Math.round(31 * fit(c.title.split('\n').sort((a, b) => b.length - a.length)[0], [[18, 1], [26, 0.85], [999, 0.7]]))}px">${c.title}</h1>
       <p style="font-size:15px;margin-top:7px;line-height:1.4">${c.sub}</p>
     </div>
     <!-- Küçük kutu yalnız yazıyken bir kapak gibi duruyordu; uygulamadan
@@ -366,18 +441,27 @@ ${c.kind === 'kucuk' ? `
 ${c.kind === 'genis' ? `
   <div class="inner" style="align-items:center;padding:0 72px;gap:64px">
     <div class="txt" style="flex:0 0 46%">
-      <h1 style="font-size:58px">${c.title}</h1>
-      <p style="font-size:23px;margin-top:18px;line-height:1.5">${c.sub}</p>
+      <h1 style="font-size:${Math.round(58 * fit(c.title.split('\n').sort((a, b) => b.length - a.length)[0], [[16, 1], [22, 0.86], [30, 0.72], [999, 0.6]]))}px">${c.title}</h1>
+      <p style="font-size:${Math.round(23 * fit(c.sub, [[90, 1], [140, 0.9], [190, 0.82], [999, 0.74]]))}px;margin-top:18px;line-height:1.5">${c.sub}</p>
     </div>
     <div class="shot" style="flex:1"><img src="${uri}"></div>
   </div>` : ''}
 ${c.kind === 'dikey' ? `
-  <div class="inner" style="flex-direction:column;justify-content:space-between;padding:84px 72px 72px">
-    <div class="txt">
-      <h1 style="font-size:76px">${c.title}</h1>
-      <p style="font-size:30px;margin-top:26px;line-height:1.45">${c.sub}</p>
+  <!-- Kapak KIRPILMAZ. Bir ara %124'e büyütülüp iki yandan taşırılmıştı
+       (yazının altındaki boşluğu yemek için) ama o zaman da ekranın
+       kenarındaki widget'lar kesiliyordu — eklentinin anlattığı şey
+       tam da o widget'lar. Şimdi kapak kartın enini tam kaplıyor ve
+       kendi oranında duruyor; artan boşluk yazının ALTINA değil,
+       yazının etrafına dağıtılıyor (metin kalan alanda ortalanır). -->
+  <div class="inner" style="flex-direction:column;padding:84px 0 0">
+    <div class="txt" style="margin:auto 72px">
+      <h1 style="font-size:${Math.round(76 * fit(c.title.split('\n').sort((a, b) => b.length - a.length)[0], [[16, 1], [22, 0.84], [30, 0.68], [999, 0.56]]))}px">${c.title}</h1>
+      <p style="font-size:${Math.round(30 * fit(c.sub, [[90, 1], [140, 0.9], [190, 0.82], [999, 0.74]]))}px;margin-top:26px;line-height:1.45">${c.sub}</p>
     </div>
-    <div class="shot" style="margin-top:56px"><img src="${uri}"></div>
+    ${c.badge ? `<div style="margin:0 72px 34px">${storeHtml()}</div>` : ''}
+    <div class="shot" style="border-radius:16px 16px 0 0;border-bottom:0">
+      <img src="${uri}">
+    </div>
   </div>` : ''}
 ${c.kind === 'kolaj' ? `
   <div class="inner" style="flex-direction:column;justify-content:center;align-items:center;padding:48px;gap:24px">
@@ -389,6 +473,190 @@ ${c.kind === 'kolaj' ? `
     <div class="shot" style="width:912px;flex:0 0 auto"><img src="${uri}"></div>
   </div>` : ''}
 </body></html>`
+
+/* ── Widget tahtası (4:5) ──
+ *
+ * Ekran görüntüsü DEĞİL: her widget tek tek, kendi kutusuyla kesilip
+ * bir tahtaya diziliyor. Bütün ekranın kapağı "şuna benziyor" diyor,
+ * bu kare "içinde şunlar var" diyor — eklentinin satır satır
+ * anlatılacak tarafı widget listesi ve bir kapakta onlar küçücük
+ * kalıyor.
+ *
+ * Kesitler saydam zeminle alınıyor: sayfanın arka planı gizlenip
+ * tarayıcının varsayılan zemini saydama çekiliyor, böylece kutuların
+ * yuvarlatılmış köşelerinden kartın kendi zemini görünüyor. Zemin
+ * gizlenmezse her kesitin köşesinde bir parça fotoğraf kalıyor ve
+ * tahta kolaj gibi değil, kırpılmış ekran görüntüleri gibi duruyor.
+ */
+async function widgetBoard() {
+  const meta = METIN['eklenti/widgetler'] ?? {}
+  await seed(base({
+    theme: 'dark', palette: 'klasik', surface: 'mat',
+    bg: { image: '29524511', mode: 'foto', dim: 60, blur: 10, grid: false, grain: false },
+    clock: { style: 'nokta', main: 'vasati', side: 'alaturka', weight: 200 },
+    // Not kutusu varsayılan boyunda bir satırlık bir şerit kalıyor;
+    // tahtada bir widget olarak okunması için biraz boy veriliyor.
+    noteHeight: 150,
+    layout: {
+      sol: ['vakit', 'takvim', 'analog', 'dini'],
+      sag: ['hava', 'ayet', 'sistem', 'yapayzeka'],
+      alt: ['not', 'google', 'sosyal'],
+    },
+  }))
+  // Yüksek bir görüntü alanı: bütün widget'lar aynı anda yerleşsin,
+  // kesit alınırken sayfanın dışında kalan olmasın.
+  await viewport(1600, 2600, 1)
+  await send('Page.navigate', { url: BASE })
+  await sleep(3000)
+
+  await send('Runtime.evaluate', {
+    expression: `(() => {
+      // Saat ve arama kutusu GİZLENMEZ: ikisi de ekranın parçası ve
+      // tahtada kendi kutularıyla duruyorlar. Gizlenen yalnızca zemin
+      // ve kart dışı denetimler.
+      for (const sel of ['canvas', '.bg', '.bg-layer', '.personalize', '.mini']) {
+        document.querySelectorAll(sel).forEach(el => { el.style.visibility = 'hidden' })
+      }
+      document.documentElement.style.background = 'transparent'
+      document.body.style.background = 'transparent'
+    })()`,
+  })
+  await send('Emulation.setDefaultBackgroundColorOverride', { color: { r: 0, g: 0, b: 0, a: 0 } })
+  await sleep(500)
+
+  const boxes = await send('Runtime.evaluate', {
+    returnByValue: true,
+    // `.ck` saat, `.search` arama kutusu; ikisi widget değil ama
+    // ekranın parçası ve tahtada görünmeleri gerekiyor. Ayrı
+    // işaretleniyorlar çünkü ızgaraya değil, üstteki tam genişlikte
+    // şeride giriyorlar.
+    expression: `[...document.querySelectorAll('.ck, .search, .w')].map(el => {
+      const r = el.getBoundingClientRect()
+      return {
+        hero: el.classList.contains('ck') || el.classList.contains('search'),
+        x: r.left + scrollX, y: r.top + scrollY, w: r.width, h: r.height,
+      }
+    }).filter(b => b.w > 40 && b.h > 24)`,
+  })
+  const list = boxes.result?.result?.value ?? []
+  if (!list.length) { console.warn('! widget bulunamadı, tahta atlandı'); return }
+
+  const grabbed = []
+  for (const b of list) {
+    const r = await send('Page.captureScreenshot', {
+      format: 'png',
+      captureBeyondViewport: true,
+      clip: { x: b.x, y: b.y, width: b.w, height: b.h, scale: 2 },
+    })
+    grabbed.push({ uri: `data:image/png;base64,${r.result.data}`, w: b.w, h: b.h, ratio: b.h / b.w, hero: b.hero })
+  }
+  const heroes = grabbed.filter((g) => g.hero)
+  const tiles = grabbed.filter((g) => !g.hero)
+  await send('Emulation.setDefaultBackgroundColorOverride', {})
+
+  /* Dizim ELDE hesaplanır, CSS kolonlarıyla değil.
+     `column-count: 2` denendi: kolonlar dolunca tarayıcı üçüncü,
+     dördüncü kolonu yana açıyor ve kartın dışında kalan widget'lar
+     sessizce kayboluyordu (on bir widget'ın yedisi görünmüyordu).
+     Burada her kutunun boyu oranından biliniyor; en kısa kolona
+     yerleştirip toplam boyu ölçmek ve gerekirse tahtanın tamamını
+     küçültmek mümkün. */
+  const GAP = 18
+  const BOARD_W = 1080 - 128
+  /* Saat ve arama kutusu üstte, tam genişlikte bir şerit; ızgaraya
+     girselerdi üç yüz piksellik bir kolona sıkışıp okunmaz kalırlardı.
+     Doğal enlerinden büyütülmüyorlar ve bir tavanları var — şerit
+     uzadıkça aşağıdaki widget'lara kalan yer daralıyor. */
+  const heroW = Math.min(620, BOARD_W, Math.max(0, ...heroes.map((h) => h.w)))
+  const heroH = heroes.reduce((sum, h) => sum + heroW * h.ratio + 14, 0)
+  const BOARD_H = 828 - heroH
+
+  /* Kolon sayısı ÖLÇÜLEREK seçilir, elle değil. Aynı widget'lar üç
+     kolonda uzun ve ince, dört kolonda kısa ve bol bir yığın veriyor;
+     hangisinin daha büyük bir ölçek bıraktığı kutuların boylarına
+     bağlı ve o boylar widget listesi değiştikçe değişiyor. Üç aday
+     denenip kutuların ekranda en büyük göründüğü seçiliyor. */
+  const pack = (cols) => {
+    const colW = (BOARD_W - GAP * (cols - 1)) / cols
+    const colH = Array(cols).fill(0)
+    const placed = tiles.map((t) => {
+      let c = 0
+      for (let i = 1; i < cols; i++) if (colH[i] < colH[c]) c = i
+      const top = colH[c]
+      const h = colW * t.ratio
+      colH[c] = top + h + GAP
+      return { uri: t.uri, left: c * (colW + GAP), top, w: colW, h }
+    })
+    const total = Math.max(...colH) - GAP
+    const fitK = Math.min(1, BOARD_H / total)
+    return { colW, placed, fitK, shown: fitK * colW }
+  }
+  const best = [2, 3, 4].map(pack).reduce((a, b) => (b.shown > a.shown ? b : a))
+  const { placed, fitK } = best
+  const title = [meta.baslik1, meta.baslik2].filter(Boolean).join('\n')
+    || 'Alaturka Yeni Sekme'
+  const sub = meta.aciklama
+    ?? 'Namaz vakitleri · hicri takvim · hava · günün ayeti · sistem · not · kendi kısayol gruplarınız'
+  // Üst etiket isteğe bağlı: başlık zaten eklentinin adı olduğunda
+  // ikisi üst üste aynı şeyi söylüyor.
+  const eyebrow = meta.ustbaslik ?? ''
+  const works = meta.uyum ?? 'Chromium tabanlı tarayıcılarda çalışır'
+  // Yalnızca Web Store'dan eklenti kurulabilen tarayıcılar. Samsung
+  // Internet listede YOK: Chromium tabanlı ama kendi mağazasını
+  // kullanıyor, buraya yazmak yanlış olurdu.
+  const browsers = meta.tarayicilar
+    ?? 'Chrome · Edge · Brave · Vivaldi · Arc · Opera · Yandex · Chromium'
+
+  const html = `<!doctype html><html lang="tr"><head><meta charset="utf-8"><style>
+${FONT_FACE}
+* { margin: 0; box-sizing: border-box; }
+html, body { width: 1080px; height: 1350px; overflow: hidden; }
+body {
+  font-family: 'Inter Tight', system-ui, sans-serif; color: #fff;
+  background: radial-gradient(120% 80% at 50% 0%, #1b2430 0%, #0b0c0e 60%);
+  padding: 72px 64px 56px; display: flex; flex-direction: column;
+}
+h1 { font-weight: 600; font-size: ${Math.round(66 * fit(title.split('\n').sort((a, b) => b.length - a.length)[0], [[16, 1], [22, 0.84], [30, 0.68], [999, 0.56]]))}px;
+  letter-spacing: -0.035em; line-height: 1.04; white-space: pre-line; }
+p { margin-top: 18px; font-weight: 400; font-size: ${Math.round(25 * fit(sub, [[90, 1], [140, 0.9], [190, 0.82], [999, 0.74]]))}px;
+  line-height: 1.45; color: rgba(255,255,255,.6); }
+.eyebrow { font-size: 20px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase;
+  color: rgba(255,255,255,.55); margin-bottom: 16px; }
+.hero { margin-top: 30px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.hero img { display: block; }
+.board { margin-top: 24px; flex: 1; min-height: 0; position: relative; }
+.board-in { position: absolute; left: 50%; top: 0; transform-origin: top center; }
+.board img { position: absolute; display: block; border-radius: 14px; }
+/* Alt şerit: nereden kurulacağı ve nerede çalıştığı. Rozet dolgulu,
+   uyum satırı soluk — biri çağrı, öbürü dipnot. Google'ın mağaza
+   logosu KULLANILMAZ (marka), yalnızca adı yazar. */
+${storeCss()}
+.store { padding-top: 6px; }
+</style></head><body>
+${eyebrow ? `<div class="eyebrow">${eyebrow}</div>` : ''}
+<h1>${title}</h1>
+<p>${sub}</p>
+<div class="hero">${heroes.map(h => `<img src="${h.uri}" style="width:${heroW}px">`).join('')}</div>
+<div class="board"><div class="board-in" style="width:${BOARD_W}px;margin-left:${-BOARD_W / 2}px;transform:scale(${fitK})">
+${placed.map(t => `<img src="${t.uri}" style="left:${t.left}px;top:${t.top}px;width:${t.w}px;height:${t.h}px">`).join('')}
+</div></div>
+${storeHtml({ pill: STORE_LINE.pill, works, browsers })}
+</body></html>`
+
+  await viewport(1080, 1350, 1)
+  await send('Page.navigate', { url: `${BASE}/__card` })
+  await sleep(300)
+  await send('Runtime.evaluate', {
+    expression: `document.open(); document.write(${JSON.stringify(html)}); document.close();`,
+  })
+  await send('Runtime.evaluate', { expression: 'document.fonts.ready', awaitPromise: true })
+  await sleep(600)
+  const out = await send('Page.captureScreenshot', { format: 'jpeg', quality: 92 })
+  await writeFile(join(OUT, 'ig-5-widgetler-1080x1350.jpg'), Buffer.from(out.result.data, 'base64'))
+  console.log('✓ ig-5-widgetler-1080x1350.jpg 1080×1350 ·', tiles.length, 'widget')
+}
+
+if (!filmOnly) await widgetBoard()
 
 if (!filmOnly) for (const c of CARDS) {
   const uri = await shotUri(c.shot)
