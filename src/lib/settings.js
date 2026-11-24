@@ -21,37 +21,41 @@ export const DINI_LINKS = [
   { id: 'diyanet', name: 'Diyanet', url: 'https://diyanet.gov.tr' },
 ]
 
-/** Yapay zekâ kısayolları. */
+/**
+ * Yapay zekâ kısayolları — DÖRT.
+ *
+ * Varsayılan liste bilinçli kısa: ilk açılışta gelen şey bir katalog
+ * değil, kullanılan bir sayfa olmalı. Altı servis yan kolonda iki
+ * satır daha tutuyordu. İsteyen ekler (ikonlar `ui/brands.js`te
+ * duruyor, listeden çıkanların ikonu da silinmedi).
+ */
 export const AI_LINKS = [
   { id: 'claude', name: 'Claude', url: 'https://claude.ai' },
   { id: 'chatgpt', name: 'ChatGPT', url: 'https://chatgpt.com' },
   { id: 'gemini', name: 'Gemini', url: 'https://gemini.google.com' },
   { id: 'perplexity', name: 'Perplexity', url: 'https://www.perplexity.ai' },
-  { id: 'grok', name: 'Grok', url: 'https://grok.com' },
-  { id: 'deepseek', name: 'DeepSeek', url: 'https://chat.deepseek.com' },
 ]
 
-/** Sosyal medya — ayrı widget, çünkü ayrı bir kullanım anı. */
+/** Sosyal medya — ayrı widget, çünkü ayrı bir kullanım anı. Dört. */
 export const SOCIAL_LINKS = [
   { id: 'x', name: 'X', url: 'https://x.com' },
   { id: 'instagram', name: 'Instagram', url: 'https://www.instagram.com' },
   { id: 'youtube', name: 'YouTube', url: 'https://www.youtube.com' },
   { id: 'whatsapp', name: 'WhatsApp', url: 'https://web.whatsapp.com' },
-  { id: 'telegram', name: 'Telegram', url: 'https://web.telegram.org' },
-  { id: 'linkedin', name: 'LinkedIn', url: 'https://www.linkedin.com/feed/' },
 ]
 
-/** Google / Workspace kısayolları. */
+/**
+ * Google / Workspace kısayolları — DÖRT.
+ *
+ * Google araması ve YouTube listeden çıktı: arama zaten ortadaki
+ * kutuda, YouTube sosyal medyada — aynı bağlantı iki widget'ta
+ * duruyordu. Sheets/Takvim/Meet isteyen ekler.
+ */
 export const GOOGLE_LINKS = [
-  { id: 'google', name: 'Google', url: 'https://www.google.com' },
   { id: 'gmail', name: 'Gmail', url: 'https://mail.google.com' },
-  { id: 'youtube', name: 'YouTube', url: 'https://www.youtube.com' },
   { id: 'docs', name: 'Docs', url: 'https://docs.google.com' },
   { id: 'drive', name: 'Drive', url: 'https://drive.google.com' },
-  { id: 'sheets', name: 'Sheets', url: 'https://sheets.google.com' },
-  { id: 'calendar', name: 'Takvim', url: 'https://calendar.google.com' },
   { id: 'maps', name: 'Maps', url: 'https://maps.google.com' },
-  { id: 'meet', name: 'Meet', url: 'https://meet.google.com' },
 ]
 
 export const ENGINES = [

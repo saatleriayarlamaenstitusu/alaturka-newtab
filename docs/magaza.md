@@ -268,8 +268,10 @@ HTTP API'si var ve GitHub Actions oradan sürüm geçebiliyor; yeni bir
 öğe OLUŞTURAMIYOR, yalnızca var olanı günceller.
 
 Depoda hazır akış: `.github/workflows/magaza.yml`. Bir sürüm etiketi
-itildiğinde (`v0.4.0` gibi) derliyor, zipliyor, yüklüyor ve yayına
-gönderiyor.
+itildiğinde (`v0.4.0` gibi) derliyor, zipliyor, **GitHub Release
+oluşturuyor** (zip ekli), sonra mağazaya yüklüyor ve yayına gönderiyor.
+Release adımı mağaza adımlarından ÖNCE: mağaza kimlik bilgileri
+patlarsa da sürüm GitHub'da görünüyor ve zip elle yüklenebiliyor.
 
 ### 4.1 Kimlik bilgileri (bir kez)
 
@@ -305,9 +307,15 @@ git tag v0.4.0
 git push origin main --tags
 ```
 
-Akış çalışır, zip'i yükler ve yayına gönderir. **İnceleme yine var** —
-otomasyon gönderiyi hızlandırmaz, yalnızca elle zip yüklemeyi ortadan
-kaldırır.
+Akış çalışır: GitHub Release + zip yüklemesi + yayına gönderim.
+**İnceleme yine var** — otomasyon gönderiyi hızlandırmaz, yalnızca elle
+zip yüklemeyi ortadan kaldırır.
+
+Çalışmayı izlemek: `gh run watch` (ya da `gh run list --workflow=magaza.yml`).
+
+**Etiket ile manifest sürümü BİREBİR eşleşmeli**: akış `v$V != etiket`
+ise hata verip duruyor. Sürümü artırmadan etiket atmak yüklemede
+reddediliyor (mağaza aynı sürümü kabul etmiyor).
 
 ### 4.4 Tuzaklar
 

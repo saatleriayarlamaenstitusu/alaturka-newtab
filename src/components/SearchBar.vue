@@ -58,7 +58,18 @@ function go() {
 </template>
 
 <style scoped>
+/* Konum ve katman ŞART: `backdrop-filter` kendi yığılma bağlamını
+   kuruyor, bu yüzden seçicinin açılır listesindeki `z-index: 20` bu
+   kutunun İÇİNDE hapsoluyordu. Kardeş olan kısayol ızgarasının
+   konumlu çocukları (`z-index: 1`) kutunun üstüne boyanıyor ve liste
+   kısayolların altında kalıyordu. Ölçüldü: 20 kısayolla listenin
+   ortasında `elementFromPoint` bir favicon `<img>`, alt ucunda bir
+   kısayol `<a>` döndürüyordu. Kutuya kardeşlerinden yüksek bir katman
+   verilince liste (kutunun içindeki her şeyle birlikte) üste çıkıyor.
+   Ayarlar paneli 50, marka/alt düğme 5 — 3 ikisinin de altında. */
 .search {
+  position: relative;
+  z-index: 3;
   display: flex;
   align-items: center;
   gap: 0.6rem;

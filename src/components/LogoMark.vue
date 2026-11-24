@@ -36,16 +36,16 @@
 </template>
 
 <style scoped>
+/* Dolgu SİMETRİK: önce solda 20px, sağda 0 vardı ve işaret sayfa
+   merkezinden 10.5px sağda duruyordu (ölçüldü: işaret merkezi 650.5,
+   sayfa merkezi 640). Izgara deliği de bu kutudan açılıyor, asimetrik
+   kutu deliği yana kaydırıyordu. */
 .lm {
   color: var(--text-muted);
-  padding: 10px;
-  padding-left: 20px;
+  padding: 10px 0;
   display: block;
-  padding-right: 0;
   border-radius: 1em;
 }
-
-.lm:hover { background: color-mix(in srgb, var(--text) 10%, transparent); }
 
 .mark {    
   width: 4.8rem;
@@ -55,5 +55,8 @@
   display: inline-block;
 }
 
+/* Hover'da ZEMİN yok: işaret sayfanın üstünde serbest duruyor,
+   arkasına düşen yuvarlak şerit onu bir düğmeye çeviriyordu.
+   Yalnızca işaretin kendisi aydınlanıyor. */
 .lm:hover { color: var(--text); }
 </style>

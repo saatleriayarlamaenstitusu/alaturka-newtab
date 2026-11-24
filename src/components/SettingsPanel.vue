@@ -8,6 +8,7 @@ import {
   DINI_LINKS, AI_LINKS, SOCIAL_LINKS, GOOGLE_LINKS,
   BUILTIN_GROUPS, GROUP_ICONS, addGroup, removeGroup, moveWidget,
 } from '@/lib/settings'
+import { isDark } from '@/lib/theme'
 import { exportBackup, importBackup } from '@/lib/backup'
 import LayoutEditor from '@/components/LayoutEditor.vue'
 import { BACKGROUNDS, bgUrl, CUSTOM_BG } from '@/data/backgrounds'
@@ -398,7 +399,7 @@ function applyPending() {
                 >{{ m.label }}</button>
               </div>
             </div>
-            <label class="row"><span>Karartma</span>
+            <label class="row"><span>{{ isDark ? 'Karartma' : 'Aydınlatma' }}</span>
               <input type="range" min="0" max="80" step="5" v-model.number="settings.bg.dim" />
               <b>{{ settings.bg.dim }}%</b>
             </label>

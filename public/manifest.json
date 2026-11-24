@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Alaturka Yeni Sekme",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Her yeni sekmede alaturka saat, namaz vakitleri ve hicri takvim.",
   "default_locale": "tr",
   "chrome_url_overrides": {

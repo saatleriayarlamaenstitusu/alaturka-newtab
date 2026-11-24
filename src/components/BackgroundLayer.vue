@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { settings } from '@/lib/settings'
+import { isDark } from '@/lib/theme'
 import { bgUrl, bgById, meshOf, CUSTOM_BG } from '@/data/backgrounds'
 
 /**
@@ -44,9 +45,18 @@ const mesh = computed(() => {
 })
 const tone = computed(() => bgById(settings.bg.image)?.tone ?? 'orta')
 
-/** Açık görselde yazı kaybolmasın: karartmaya bir taban eklenir. */
+/**
+ * Örtü: koyu temada SİYAH (karartma), açık temada BEYAZ (aydınlatma).
+ *
+ * Yazı hangi renkteyse zemin onun tersine çekilir; açık temada siyah
+ * örtü üstüne koyu yazı düşüyor ve hiçbir şey okunmuyordu.
+ *
+ * Taban da yöne bağlı: koyu temada AÇIK görsel, açık temada KOYU
+ * görsel fazladan 12 puan ister — örtü zaten o yönde çalışıyor.
+ */
 const dim = computed(() => {
-  const base = tone.value === 'açık' ? 12 : 0
+  const zor = isDark.value ? 'açık' : 'koyu'
+  const base = tone.value === zor ? 12 : 0
   return Math.min(85, (settings.bg.dim ?? 0) + base) / 100
 })
 
@@ -66,8 +76,16 @@ const blur = computed(() => Number(settings.bg.blur) || 0)
  * ayar istemiyor.
  */
 const GRID = 80
-/** Delik açılan şeyler: widget'lar, arama kutusu, saat ve mini blok. */
-const HOLES = '.w, .search, .ck, .mini'
+/**
+ * Delik açılan şeyler: widget'lar, arama kutusu, saat, mini blok ve
+ * MARKA İŞARETİ.
+ *
+ * Marka işareti zeminsiz duruyor (hover'da bile zemin yok), bu yüzden
+ * ızgara çizgisi doğrudan üstünden geçiyordu — öbür kutuların
+ * yarı saydam zemini çizgiyi bastırıyor, işarette bastıran hiçbir şey
+ * yok. Deliğin yarıçapı işaretin kendi köşe yuvarlaklığından geliyor.
+ */
+const HOLES = '.w, .search, .ck, .mini, .lm'
 const canvas = ref(null)
 let ro = null
 let mo = null
@@ -90,7 +108,8 @@ function paint() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, w, h)
 
-  ctx.strokeStyle = 'rgba(255,255,255,0.07)'
+  // Izgara çizgisi de temaya göre: açık zeminde beyaz çizgi görünmüyor.
+  ctx.strokeStyle = isDark.value ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)'
   ctx.lineWidth = 1
   ctx.beginPath()
   // Yarım piksel kaydırma: tam sayıda çizilen 1px çizgi iki piksele
@@ -161,7 +180,7 @@ onBeforeUnmount(() => {
   cancelAnimationFrame(pending)
 })
 
-watch(() => [settings.bg.grid, settings.surface, settings.layout, settings.noteHeight],
+watch(() => [settings.bg.grid, settings.surface, settings.layout, settings.noteHeight, isDark.value],
   () => { nextTick(observeHoles); schedule() }, { deep: true })
 </script>
 
@@ -194,7 +213,9 @@ watch(() => [settings.bg.grid, settings.surface, settings.layout, settings.noteH
   background-position: center;
 }
 
+/* Örtünün rengi temadan gelir: koyuda siyah, açıkta beyaz. */
 .bg-dim { position: absolute; inset: 0; background: #000; }
+:root[data-theme='light'] .bg-dim { background: #fff; }
 
 /* Izgara: yazıyla yarışmayacak kadar soluk, ama sayfaya bir düzen
    duygusu veriyor. Ölçü 80px — ekran büyüdükçe kare sayısı artar,

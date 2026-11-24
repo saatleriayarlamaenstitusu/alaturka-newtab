@@ -31,6 +31,12 @@ Chrome'a yüklemek: `chrome://extensions` → Geliştirici modu →
 - **Tema sitenin kalıbı**: `data-theme` × `data-palette` × `data-vakit`
   özniteliklerine yazılır, arayüz vurguları `--primary` değil
   `--accent-ui` kullanır.
+- **Etkin tema tek kaynakta** (`lib/theme.js` `isDark`): arka plan
+  (karartma mı aydınlatma mı), ayarlar paneli (sürgünün adı) ve sistem
+  göstergesi (hangi kırmızı) aynı soruyu soruyor. `auto` modda sistem
+  tercihi CANLI izleniyor — önce yalnızca açılışta okunuyordu.
+  Sayfanın altında güneş/ay düğmesi var: tema en sık yapılan ayar,
+  her seferinde paneli açtırmıyor.
 - Arama kutusuna adres benzeri bir metin girilirse (nokta var, boşluk
   yok) arama yerine doğrudan o adrese gidilir.
 
@@ -64,10 +70,25 @@ altta ortada durur; ikisi de sabittir ve widget kolonlarına karışmaz.
   okunuyordu ama widget'ı gereksiz uzatıyor, yanındaki takvimle
   birlikte sol kolon ekranı dolduruyordu. İçinde bulunulan vakit
   üstündeki aksan çizgisiyle, geçmişler soluklukla işaretlenir.
-- **Takvim** — rakamlı ızgara; **miladi/hicri** seçilebilir. Nokta
-  ızgarası denendi ve bırakıldı: ay bir bakışta okunuyordu ama
+- **Takvim** — rakamlı ızgara; **miladi/hicri/birleşik** seçilebilir.
+  Nokta ızgarası denendi ve bırakıldı: ay bir bakışta okunuyordu ama
   "bugün ayın kaçı", "cuma hangi gün" sorularına cevap vermiyordu —
   noktalar güzeldi, takvim değildi.
+  Ay oklarla değiştirilir, gezinti hangi takvim büyük yazılıyorsa onun
+  ayını sayar; "Bugüne dön" sıfırlar. Başlık alanı SABİT genişlikte
+  (ok | başlık | ok ızgarası): ay adı uzayıp kısaldıkça oklar
+  kaymasın. En uzun ad "Cemaziyelevvel 1448" (122.2px ölçüldü), punto
+  ona göre 0.7rem; sığmazsa üç nokta. Geçmişlik gün NUMARASINDAN değil
+  tarihten hesaplanır (gezintide başka ayın 3'i bugünün 23'ünden önce
+  gelebiliyor).
+  Günün altında NOKTA: yeşil dinî, kırmızı millî. Renkler sabit, aksan
+  değil — aksan yatsıda #2e3b83 ve koyu zeminde nokta kayboluyor.
+  Ayın günleri ızgaranın altında listelenir; bir güne dokununca o günün
+  künyesi (miladi + hicri + hafta günü) ve etkinliği açılır.
+  Dinî taraf çekirdekten (`holyDaysBetween`), millî taraf
+  `data/holidays.js`ten (yedi sabit miladi gün). Millî liste çekirdekte
+  DEĞİL: çekirdek vakit/hicri kuralını tutuyor, bu liste ikisi de değil;
+  site de isterse o zaman çekirdeğe taşınmalı.
 - **Sistem** — pil, işlemci, bellek; çentikli ölçekler. Halka
   denendi ve bırakıldı: yüzdeyi ortadaki rakamdan okumak gerekiyordu,
   yani halka süstü. `chrome.system.cpu` **anlık yüzde vermez**,
@@ -83,14 +104,31 @@ altta ortada durur; ikisi de sabittir ve widget kolonlarına karışmaz.
   (ölçüldü).
 - **Not** — tek metin kutusu, kaydet düğmesi yok (yazdığın an saklanır).
 - **Analog saat** — ayrı widget; kadran alaturka da olabilir.
-- **Dinî**, **Yapay zekâ**, **Sosyal medya** — üçü de tek bileşenden
-  (`LinkWidget`); fark veride ve `compact` kipinde.
+- **Dinî**, **Yapay zekâ**, **Sosyal medya**, **Google** — hepsi tek
+  bileşenden (`LinkWidget`); fark veride ve `compact` kipinde.
+- **Hazır listeler bilinçli kısa** (dörder): sosyal X/Instagram/
+  YouTube/WhatsApp, Google Gmail/Docs/Drive/Maps, yapay zekâ
+  Claude/ChatGPT/Gemini/Perplexity. İlk açılışta gelen şey katalog
+  değil kullanılan bir sayfa olmalı; isteyin ekler. Google araması
+  ortadaki kutuda, YouTube sosyal medyada — aynı bağlantı iki
+  widget'ta durmuyor. Listeden çıkanların İKONU silinmedi
+  (`ui/brands.js`), elle eklenince yine geliyor.
+  Değişiklik yalnızca varsayılanı etkiler: kayıtlı ayarlar üstüne
+  oturur, kurulu kullanıcının listesi değişmez ("Hazır listeye dön").
 - **Hava durumu** — ölçüm değil BAĞLANTI: gerçek veri bir API anahtarı
   ve her açılışta bir istek demek, eklentinin kuralı ise "yeni sekme
   ağ beklemez".
 - **Kişisel kısayollar** iki kaynaktan birleşir: kendi eklediklerin
   (başta, sürüklenerek sıralanır) ve `chrome.topSites`. **Sabitlemek**,
   tarayıcıdan geleni kendi listene taşımaktır.
+- **Favicon yoksa küre**: servis favicon bulamadığında 404 dönüyor ama
+  gövdesinde 16×16 yer tutucu gönderiyor ve tarayıcı onu BAŞARIYLA
+  yüklüyor — `error` olayı hiç düşmüyor (ölçüldü). Ayırt eden ölçü boy:
+  yer tutucu istenen boydan bağımsız hep 16, gerçek faviconlar 18–128.
+  16 ve altı "yok" sayılıp vektör küre çiziliyor. Gerçek faviconu 16×16
+  olan site de küreye düşer; CORS kapalı olduğu için piksel
+  karşılaştırması yapılamıyor, host izni eklemek mağazada yeni izin
+  uyarısı demek — ikisi de bu takasa değmez.
 
 ## Saat
 
@@ -113,8 +151,13 @@ kökeni CDN'in CORS listesinde olmadığı için çalışmıyor) ve **yok**.
 Widget zemini ayrı bir ayar: buzlu cam / mat / yalnız çerçeve /
 zeminsiz.
 
-Fotoğraf açıkken renk belirteçleri koyuya sabitlenir: açık temada
-beyaz yazı beyaz karta düşüyordu.
+Fotoğraf açıkken renk belirteçleri sabitlenir: açık temada beyaz yazı
+beyaz karta düşüyordu. Sabitlenen yön TEMAYA bağlı — koyu temada
+fotoğraf karartılıp üstüne beyaz yazı, açık temada AYDINLATILIP üstüne
+koyu yazı gelir. Örtü koyuda siyah, açıkta beyaz; sürgünün adı da
+"Karartma"/"Aydınlatma" diye değişir. Taban puan yöne bağlı: koyuda
+açık görsel, açıkta koyu görsel fazladan 12 ister. Izgara çizgisi de
+temaya göre (açık zeminde beyaz çizgi görünmüyor).
 
 ## Arayüz kuralları
 
@@ -132,6 +175,15 @@ beyaz yazı beyaz karta düşüyordu.
   logosunun yollarını taşır (`ui/LogoMotion.vue` ile aynı), satır içi
   ve `currentColor` ile.
 - Arama motoru kutunun İÇİNDE, sağ uçta.
+- **Arama kutusunun katmanı kardeşlerinden yüksek** (`z-index: 3`):
+  `backdrop-filter` kendi yığılma bağlamını kuruyor, seçicinin açılır
+  listesindeki `z-index: 20` kutunun içinde hapsoluyordu ve kısayol
+  ızgarasının konumlu çocukları (`z-index: 1`) listenin üstüne
+  boyanıyordu (ölçüldü: `elementFromPoint` listenin ortasında favicon
+  `<img>` döndürüyordu). Ayarlar paneli 50, marka/alt düğme 5.
+- **Marka işaretinin hover'ında zemin yok**: arkasına düşen şerit
+  işareti bir düğmeye çeviriyordu; yalnızca işaretin kendisi
+  aydınlanıyor.
 
 ## Vakit hatırlatması
 
@@ -170,6 +222,13 @@ mağazaya gönderim.
 
 - Izgara tuvale çiziliyor ve her kutunun dikdörtgeni `destination-out`
   ile siliniyor (CSS deseniyle delik açılamıyor).
+- Delik açılanlar: widget'lar, arama kutusu, saat, mini blok ve
+  **marka işareti** (`.lm`). İşaret zeminsiz duruyor — öbür kutuların
+  yarı saydam zemini çizgiyi bastırıyor, işarette bastıran hiçbir şey
+  yoktu ve çizgi doğrudan üstünden geçiyordu.
+- Marka işaretinin dolgusu SİMETRİK (`10px 0`): önce sol 20px / sağ 0
+  vardı, işaret sayfa merkezinden 10.5px sağda duruyordu ve delik de
+  yana kayıyordu.
 - **Her kutu AYRI izleniyor**, yalnızca `document.body` değil: not
   kutusu elle büyütüldüğünde gövdenin boyu değişmiyor (widget kolonun
   içinde) ve gözlemci hiç tetiklenmiyordu — ızgara notun arkasında
@@ -237,7 +296,17 @@ mağazaya gönderim.
   duruyordu.
 - Yanan çubuk BEYAZ, aksan rengi değil: aksan vakitle değişiyor ve bazı
   vakitlerde zeminden ayrılmıyordu — ölçüm okunurluğu temaya bağlı
-  olmamalı. Son %15 kırmızı ("dolmak üzere" sayıyı okumadan görünsün).
+  olmamalı.
+- **Uyarı yönü satıra göre** (`isHot`): işlemci ve bellekte son %15
+  kırmızı ("dolmak üzere"), **pilde %15'in ALTI** ("bitmek üzere").
+  Pilde dolmak iyi bir şey; aynı kuralı üçüne de uygulayınca %100
+  pilde son üç çubuk kırmızı yanıyor ve "pil dolu, tehlike" diyordu.
+  %100 pilde ölçeğin tamamı beyaz.
+  O kırmızı da SABİT (#ff6b6b / açıkta #d92d20), `--primary` değil:
+  yatsıda aksan #2e3b83'tü ve %100 pilde son üç çubuk "renkli ama boş
+  kutu" gibi okunuyordu (ölçüldü: kontrast 1.9:1, beyaz çubuk 16:1).
+  Açık tema kırmızısı yalnızca fotoğraf kapalıyken geçerli — fotoğraf
+  açıkken zemin koyuya sabitleniyor.
 
 ## Mağaza görselleri
 

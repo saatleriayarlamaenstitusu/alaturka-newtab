@@ -22,6 +22,10 @@ const rows = computed(() => {
     out.push({
       key: 'pil',
       label: 'Pil',
+      // Uyarı yönü TERS: işlemci/bellekte dolmak kötü, pilde dolmak
+      // iyi. `low` bunu söylüyor — kırmızı buna göre ölçeğin
+      // başında mı sonunda mı duracağını belirliyor.
+      low: true,
       pct: battery.value.level,
       note: battery.value.charging
         ? 'şarjda'
@@ -41,6 +45,22 @@ const rows = computed(() => {
 })
 
 const lit = (pct) => Math.round(((pct ?? 0) / 100) * DOTS)
+
+/**
+ * Kırmızı hangi çubuklarda?
+ *
+ * İşlemci ve bellekte son %15: yük dolmak üzere, uyarı.
+ *
+ * PİLDE TERSİ: %100 pilde son üç çubuğun kırmızı olması "pil dolu,
+ * tehlike" diyordu — oysa dolması iyi bir şey. Pilde uyarı AZALMAK:
+ * %15'in altındaysa yanan çubukların hepsi kırmızı. %100'de ölçeğin
+ * tamamı beyaz.
+ */
+const HOT = 0.15
+const isHot = (r, i) => {
+  if (i > lit(r.pct)) return false          // yanmayan çubuk boyanmaz
+  return r.low ? (r.pct ?? 0) <= HOT * 100 : i > DOTS * (1 - HOT)
+}
 </script>
 
 <template>
@@ -52,7 +72,7 @@ const lit = (pct) => Math.round(((pct ?? 0) / 100) * DOTS)
         <span class="sy-pct">{{ r.pct ?? '–' }}<i>%</i></span>
       </div>
       <div class="sy-scale" :aria-label="`${r.label} %${r.pct ?? 0}`">
-        <span v-for="i in DOTS" :key="i" class="bar" :class="{ on: i <= lit(r.pct), hot: i > DOTS * 0.85 && i <= lit(r.pct) }" />
+        <span v-for="i in DOTS" :key="i" class="bar" :class="{ on: i <= lit(r.pct), hot: isHot(r, i) }" />
       </div>
     </div>
   </div>
@@ -107,7 +127,19 @@ const lit = (pct) => Math.round(((pct ?? 0) / 100) * DOTS)
    bağlı olmamalı. */
 .bar.on { opacity: 0.92; }
 
-/* Son %15: dolmak üzere. Tek renkli bir şeritte "neredeyse doldu"
-   ancak sayıyı okuyarak anlaşılıyordu. */
-.bar.hot { background: var(--primary); opacity: 1; }
+/* Uyarı rengi (hangi çubuklarda olduğu `isHot`ta): işlemci/bellekte
+   son %15, pilde %15'in ALTI. Tek renkli bir şeritte "neredeyse
+   doldu" / "bitmek üzere" ancak sayıyı okuyarak anlaşılıyordu.
+
+   Renk SABİT kırmızı, `--primary` DEĞİL: aksan vakitle değişiyor ve
+   yatsıda (#2e3b83) koyu kartın üstünde neredeyse görünmüyordu —
+   %100 pilde son üç çubuk "renkli ama boş kutu" gibi okunuyordu
+   (ölçüldü: zemin #0b0b0d ile kontrast 1.9:1, yanan beyaz çubuk
+   16:1). Yorum zaten "kırmızı" diyordu, kod aksanı kullanıyordu. */
+.bar.hot { background: #ff6b6b; opacity: 1; }
+
+/* Açık temada koyu kırmızı — ama fotoğraf açıkken DEĞİL: o durumda
+   renkler koyuya sabitleniyor (bkz. base.css `data-photo`), tema
+   etiketi 'light' olsa da zemin koyu kalıyor. */
+:root[data-theme='light']:not([data-photo='on']) .bar.hot { background: #d92d20; }
 </style>

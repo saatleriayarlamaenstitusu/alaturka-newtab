@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { settings, state, loadSettings, setSlot } from '@/lib/settings'
+import { isDark } from '@/lib/theme'
 import { ensureVakit, refreshCurrent, current } from '@/lib/vakit'
 import { startSystem, stopSystem, hasSystem } from '@/lib/system'
 import { loadTopSites } from '@/lib/sites'
@@ -57,7 +58,7 @@ onMounted(async () => {
 onUnmounted(() => { clearInterval(timer); stopSystem() })
 
 watch(() => settings.city.plate, (p) => ensureVakit(p))
-watch([() => settings.theme, () => settings.themePerVakit, () => settings.palette,
+watch([isDark, () => settings.themePerVakit, () => settings.palette,
   () => settings.bg.image, () => settings.bg.mode, current], () => applyTheme())
 
 /**
@@ -68,10 +69,7 @@ watch([() => settings.theme, () => settings.themePerVakit, () => settings.palett
  */
 function applyTheme() {
   const el = document.documentElement
-  const dark = settings.theme === 'auto'
-    ? !window.matchMedia('(prefers-color-scheme: light)').matches
-    : settings.theme === 'dark'
-  el.dataset.theme = dark ? 'dark' : 'light'
+  el.dataset.theme = isDark.value ? 'dark' : 'light'
   el.dataset.palette = settings.palette
   if (settings.themePerVakit && current.value) el.dataset.vakit = current.value
   else delete el.dataset.vakit
@@ -169,6 +167,17 @@ const close = (id) => setSlot(id, 'kapali')
     </header>
 
     <footer class="foot">
+      <!-- Tema düğmesi ayarların DIŞINDA: gece/gündüz geçişi en sık
+           yapılan ayar, her seferinde paneli açıp Görünüm grubunu
+           bulmak istemiyor. 'auto'dan çıkıp açık seçime geçer. -->
+      <button
+        class="theme-toggle"
+        :aria-label="isDark ? 'Açık temaya geç' : 'Koyu temaya geç'"
+        :title="isDark ? 'Açık tema' : 'Koyu tema'"
+        @click="settings.theme = isDark ? 'light' : 'dark'"
+      >
+        <Icon :name="isDark ? 'gunes' : 'ay'" :size="15" />
+      </button>
       <button class="personalize" aria-label="Kişiselleştir" @click="openSettings = true">
         <Icon name="gorunum" :size="15" />
         <span>Kişiselleştir</span>
@@ -228,8 +237,29 @@ const close = (id) => setSlot(id, 'kapali')
   left: 50%;
   bottom: 1rem;
   z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   transform: translateX(-50%);
 }
+
+/* Tema düğmesi kişiselleştirmeyle aynı dilde ama yazısız: işi tek
+   bir bakışta anlatıyor (güneş/ay), yanındaki yazılı düğmeyi
+   tekrarlamıyor. */
+.theme-toggle {
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  color: var(--text-muted);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+}
+
+.theme-toggle:hover { color: var(--text); border-color: var(--accent-ui); }
 
 .personalize {
   display: flex;

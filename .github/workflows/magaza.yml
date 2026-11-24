@@ -8,6 +8,11 @@
 # göndermeden bırakmak için `publish: false` seçilir.
 name: Mağaza
 
+# Release oluşturmak için yazma izni gerekiyor; varsayılan GITHUB_TOKEN
+# bazı depolarda salt okunur geliyor.
+permissions:
+  contents: write
+
 on:
   push:
     tags: ['v*']
@@ -45,6 +50,19 @@ jobs:
 
       - name: Paketi ziple
         run: cd dist && zip -qr ../alaturka-newtab.zip .
+
+      # GitHub Release — mağazadan ÖNCE: mağaza kimlik bilgileri
+      # patlarsa da sürüm GitHub'da görünsün, zip elle yüklenebilsin.
+      # Yalnızca etiket itildiğinde; `workflow_dispatch`te dal adı
+      # release adı olamaz.
+      - name: GitHub Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" alaturka-newtab.zip \
+            --title "Alaturka Yeni Sekme $GITHUB_REF_NAME" \
+            --generate-notes
 
       - name: Erişim anahtarı al
         id: token

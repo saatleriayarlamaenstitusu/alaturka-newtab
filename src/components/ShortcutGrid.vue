@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { settings } from '@/lib/settings'
 import { top, keyOf, pin, unpin, move, add } from '@/lib/sites'
+import Icon from '@/ui/Icon.vue'
 
 /**
  * Kişisel kısayollar.
@@ -29,7 +30,30 @@ const auto = computed(() => {
 
 const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, '') } catch { return '' } }
 const icon = (u) => `https://www.google.com/s2/favicons?sz=64&domain=${encodeURIComponent(host(u))}`
-const initial = (n) => (n || '?').trim().charAt(0).toLocaleUpperCase('tr')
+
+/**
+ * Faviconu GELMEYEN adresler.
+ *
+ * `error` olayı YETMİYOR: servis favicon bulamadığında 404 dönüyor
+ * ama gövdesinde 16×16'lık bir yer tutucu küre gönderiyor ve tarayıcı
+ * onu BAŞARIYLA yüklüyor (ölçüldü: example.com ve olmayan bir alan
+ * adı → `complete: true`, `naturalWidth: 16`). Yani kırık görsel
+ * diye bir şey yok, ekranda servisin bulanık küçük küresi duruyordu.
+ *
+ * Ayırt eden ölçü BOY: yer tutucu istenen boydan bağımsız hep 16×16
+ * (sz=64 ve sz=128'de de 16 ölçüldü), gerçek faviconlar 18–128
+ * geliyor (github 32, HN 18, youtube 64/128). Bu yüzden 16 ve altı
+ * "favicon yok" sayılıp yerine bizim KÜRE çiziliyor.
+ *
+ * Bilinen sınır: gerçek faviconu 16×16 olan bir site de küreye
+ * düşer. 16px'lik bir görsel 22px'lik kutuda zaten bulanık duruyor;
+ * vektör küre ondan net. CORS kapalı olduğu için piksel karşılaştırması
+ * yapılamıyor (tuval kirleniyor), host izni eklemek de mağazada yeni
+ * bir izin uyarısı demek — ikisi de bu takasa değmez.
+ */
+const broken = ref({})
+const markBroken = (u) => { broken.value = { ...broken.value, [u]: true } }
+const onIconLoad = (u, e) => { if ((e.target?.naturalWidth ?? 0) <= 16) markBroken(u) }
 
 function submit() {
   if (add(name.value, url.value)) { name.value = ''; url.value = ''; adding.value = false }
@@ -61,8 +85,17 @@ function onDrop(to) {
         @dragend="dragFrom = -1; over = -1"
       >
         <span class="ico">
-          <img :src="icon(s.url)" alt="" width="22" height="22" loading="lazy" />
-          <span class="letter">{{ initial(s.name) }}</span>
+          <img
+            v-if="!broken[s.url]"
+            :src="icon(s.url)"
+            alt=""
+            width="22"
+            height="22"
+            loading="lazy"
+            @load="onIconLoad(s.url, $event)"
+            @error="markBroken(s.url)"
+          />
+          <Icon v-else name="dunya" :size="18" class="ico-fallback" />
         </span>
         <span class="name">{{ s.name }}</span>
         <button class="act" title="Kaldır" @click.prevent.stop="unpin(s.id)">×</button>
@@ -76,8 +109,17 @@ function onDrop(to) {
         :title="s.name"
       >
         <span class="ico">
-          <img :src="icon(s.url)" alt="" width="22" height="22" loading="lazy" />
-          <span class="letter">{{ initial(s.name) }}</span>
+          <img
+            v-if="!broken[s.url]"
+            :src="icon(s.url)"
+            alt=""
+            width="22"
+            height="22"
+            loading="lazy"
+            @load="onIconLoad(s.url, $event)"
+            @error="markBroken(s.url)"
+          />
+          <Icon v-else name="dunya" :size="18" class="ico-fallback" />
         </span>
         <span class="name">{{ s.name }}</span>
         <button class="act" title="Sabitle" @click.prevent.stop="pin(s)">⌁</button>
@@ -134,7 +176,8 @@ function onDrop(to) {
   border: 1px solid var(--border);
 }
 
-.ico img { position: relative; z-index: 1; }
+/* Favicon gelmeyince küre: soluk, kutunun kendi dilinde. */
+.ico-fallback { color: var(--text-muted); opacity: 0.75; }
 .letter { position: absolute; font-size: 0.85rem; color: var(--text-muted); }
 
 .name {
